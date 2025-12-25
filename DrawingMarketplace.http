@@ -1,0 +1,6 @@
+@DrawingMarketplace_HostAddress = http://localhost:5084
+
+GET {{DrawingMarketplace_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
