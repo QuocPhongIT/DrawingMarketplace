@@ -17,11 +17,13 @@ namespace DrawingMarketplace.Infrastructure
             IConfiguration configuration)
         {
             var connectionString =
-                Environment.GetEnvironmentVariable("DATABASE_CONNECTION")
-                ?? configuration.GetConnectionString("DefaultConnection");
+                Environment.GetEnvironmentVariable("DATABASE_CONNECTION");
 
             if (string.IsNullOrWhiteSpace(connectionString))
-                throw new InvalidOperationException("DATABASE_CONNECTION is not configured.");
+            {
+                throw new InvalidOperationException(
+                    "DATABASE_CONNECTION is not configured. Please set it in Render Environment Variables.");
+            }
 
             services.AddDbContext<DrawingMarketplaceContext>(options =>
             {
