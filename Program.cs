@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using DotNetEnv;
 
 Env.Load();
-
+AppContext.SetSwitch("Npgsql.EnableLegacyNamingConvention", false);
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
