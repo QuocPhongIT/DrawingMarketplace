@@ -35,8 +35,12 @@ namespace DrawingMarketplace.Infrastructure
                 dataSourceBuilder.MapEnum<OtpType>("otp_type");
                 dataSourceBuilder.MapEnum<ContentStatus>("content_status");
 
+
+
+                //dataSourceBuilder.EnableLegacyCaseInsensitiveNamingConvention(false);
                 options
                     .UseNpgsql(dataSourceBuilder.Build())
+                    .UseLowerCaseNamingConvention()
                     .EnableSensitiveDataLogging(false)
                     .LogTo(Console.WriteLine, LogLevel.Information);
             });
