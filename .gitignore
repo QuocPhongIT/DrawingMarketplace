@@ -11,6 +11,8 @@ x86/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+.vs/
+*.csproj.user
 
 # .NET Core
 project.lock.json
