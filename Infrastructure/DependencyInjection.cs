@@ -39,8 +39,8 @@ namespace DrawingMarketplace.Infrastructure
 
                 //dataSourceBuilder.EnableLegacyCaseInsensitiveNamingConvention(false);
                 options
-                    .UseLowerCaseNamingConvention()
                     .UseNpgsql(dataSourceBuilder.Build())
+                    .UseLowerCaseNamingConvention()
                     .EnableSensitiveDataLogging(false)
                     .LogTo(Console.WriteLine, LogLevel.Information);
             });
