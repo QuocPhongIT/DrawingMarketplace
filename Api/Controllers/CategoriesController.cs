@@ -1,5 +1,6 @@
 ﻿using DrawingMarketplace.Application.DTOs.Catogory;
 using DrawingMarketplace.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
@@ -19,52 +20,42 @@ namespace DrawingMarketplace.Api.Controllers
             _service = service;
         }
 
+        [AllowAnonymous]
         [HttpGet]
         public async Task<ActionResult<List<CategoryDto>>> GetAll()
         {
-            var categories = await _service.GetAllAsync();
-            return Ok(categories);
+            return Ok(await _service.GetAllAsync());
         }
 
+        [AllowAnonymous]
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<CategoryDto>> GetById(Guid id)
         {
             var category = await _service.GetByIdAsync(id);
-            if (category == null)
-                return NotFound();
-            return Ok(category);
+            return category == null ? NotFound() : Ok(category);
         }
+
+        [Authorize(Roles = "admin")]
         [HttpPost]
-        public async Task<ActionResult<CategoryDto>> Create([FromBody] CreateCategoryDto dto)
+        public async Task<ActionResult<CategoryDto>> Create(CreateCategoryDto dto)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var createdCategory = await _service.CreateAsync(dto);
-            return CreatedAtAction(nameof(GetById), new { id = createdCategory.Id }, createdCategory);
+            var created = await _service.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
 
+        [Authorize(Roles = "admin")]
         [HttpPut("{id:guid}")]
-        public async Task<ActionResult<CategoryDto>> Update(Guid id, [FromBody] UpdateCategoryDto dto)
+        public async Task<ActionResult<CategoryDto>> Update(Guid id, UpdateCategoryDto dto)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var updatedCategory = await _service.UpdateAsync(id, dto);
-            if (updatedCategory == null)
-                return NotFound();
-
-            return Ok(updatedCategory);
+            var updated = await _service.UpdateAsync(id, dto);
+            return updated == null ? NotFound() : Ok(updated);
         }
 
+        [Authorize(Roles = "admin")]
         [HttpDelete("{id:guid}")]
-        public async Task<ActionResult> Delete(Guid id)
+        public async Task<IActionResult> Delete(Guid id)
         {
-            var result = await _service.DeleteAsync(id);
-            if (!result)
-                return NotFound();
-
-            return NoContent();
+            return await _service.DeleteAsync(id) ? NoContent() : NotFound();
         }
     }
 }

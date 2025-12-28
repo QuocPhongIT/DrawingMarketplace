@@ -6,48 +6,47 @@ using System.Security.Claims;
 namespace DrawingMarketplace.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/collaborators")]
 public class CollaboratorController : ControllerBase
 {
-    private readonly ApplyCollaboratorHandler _applyCollaborator;
-    private readonly ApproveCollaboratorHandler _approveCollaborator;
-    private readonly RejectCollaboratorHandler _rejectCollaborator;
+    private readonly ApplyCollaboratorHandler _apply;
+    private readonly ApproveCollaboratorHandler _approve;
+    private readonly RejectCollaboratorHandler _reject;
 
     public CollaboratorController(
-        ApplyCollaboratorHandler applyCollaborator,
-        ApproveCollaboratorHandler approveCollaborator,
-        RejectCollaboratorHandler rejectCollaborator)
+        ApplyCollaboratorHandler apply,
+        ApproveCollaboratorHandler approve,
+        RejectCollaboratorHandler reject)
     {
-        _applyCollaborator = applyCollaborator;
-        _approveCollaborator = approveCollaborator;
-        _rejectCollaborator = rejectCollaborator;
+        _apply = apply;
+        _approve = approve;
+        _reject = reject;
     }
 
     [Authorize]
-    [HttpPost("apply")]
+    [HttpPost]
     public async Task<IActionResult> Apply()
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        await _applyCollaborator.ExecuteAsync(userId);
+        await _apply.ExecuteAsync(userId);
         return Accepted();
     }
 
     [Authorize(Roles = "admin")]
-    [HttpPost("requests/{id}/approve")]
-    public async Task<IActionResult> Approve(Guid id)
+    [HttpPatch("{id:guid}")]
+    public async Task<IActionResult> UpdateStatus(
+        Guid id,
+        [FromBody] string status)
     {
         var adminId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        await _approveCollaborator.ExecuteAsync(id, adminId);
-        return NoContent();
-    }
 
-    [Authorize(Roles = "admin")]
-    [HttpPost("requests/{id}/reject")]
-    public async Task<IActionResult> Reject(Guid id)
-    {
-        var adminId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        await _rejectCollaborator.ExecuteAsync(id, adminId);
+        if (status == "approved")
+            await _approve.ExecuteAsync(id, adminId);
+        else if (status == "rejected")
+            await _reject.ExecuteAsync(id, adminId);
+        else
+            return BadRequest();
+
         return NoContent();
     }
 }
-

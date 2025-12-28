@@ -10,6 +10,12 @@ public static class SwaggerExtensions
     {
         services.AddSwaggerGen(c =>
         {
+            c.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Title = "Drawing Marketplace API",
+                Version = "v1"
+            });
+
             var jwtSecurityScheme = new OpenApiSecurityScheme
             {
                 Name = "Authorization",
@@ -17,25 +23,23 @@ public static class SwaggerExtensions
                 Scheme = "bearer",
                 BearerFormat = "JWT",
                 In = ParameterLocation.Header,
-                Description = "Enter: Bearer {your JWT token}"
+                Description = "Enter: Bearer {your JWT token}",
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
             };
 
             c.AddSecurityDefinition("Bearer", jwtSecurityScheme);
 
             c.AddSecurityRequirement(new OpenApiSecurityRequirement
-{
             {
-                new OpenApiSecurityScheme
                 {
-                    Reference = new OpenApiReference
-                    {
-                        Type = ReferenceType.SecurityScheme,
-                        Id = "Bearer"
-                    }
-                },
-                Array.Empty<string>()
-            }
-        });
+                    jwtSecurityScheme,
+                    Array.Empty<string>()
+                }
+            });
         });
 
         return services;

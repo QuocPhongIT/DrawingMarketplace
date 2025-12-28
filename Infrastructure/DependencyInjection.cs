@@ -5,8 +5,8 @@ using DrawingMarketplace.Infrastructure.Repositories;
 using DrawingMarketplace.Infrastructure.Services;
 using DrawingMarketplace.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace DrawingMarketplace.Infrastructure
 {
@@ -16,8 +16,12 @@ namespace DrawingMarketplace.Infrastructure
             this IServiceCollection services,
             IConfiguration configuration)
         {
-            var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
-                                   ?? configuration.GetConnectionString("DefaultConnection");
+            var connectionString =
+                Environment.GetEnvironmentVariable("DATABASE_CONNECTION")
+                ?? configuration.GetConnectionString("DefaultConnection");
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new InvalidOperationException("DATABASE_CONNECTION is not configured.");
 
             services.AddDbContext<DrawingMarketplaceContext>(options =>
             {
@@ -29,11 +33,9 @@ namespace DrawingMarketplace.Infrastructure
                 dataSourceBuilder.MapEnum<OtpType>("otp_type");
                 dataSourceBuilder.MapEnum<ContentStatus>("content_status");
 
-                var dataSource = dataSourceBuilder.Build();
-
                 options
-                    .UseNpgsql(dataSource)
-                    .EnableSensitiveDataLogging()
+                    .UseNpgsql(dataSourceBuilder.Build())
+                    .EnableSensitiveDataLogging(false)
                     .LogTo(Console.WriteLine, LogLevel.Information);
             });
 
@@ -50,6 +52,7 @@ namespace DrawingMarketplace.Infrastructure
             services.AddScoped<IPasswordHasher, PasswordHasher>();
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<ITokenService, TokenService>();
+
             services.AddHttpContextAccessor();
 
             return services;

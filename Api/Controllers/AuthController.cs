@@ -1,123 +1,70 @@
-﻿using System.Security.Claims;
-using DrawingMarketplace.Application.DTOs.Auth;
+﻿using DrawingMarketplace.Application.DTOs.Auth;
 using DrawingMarketplace.Application.Features.Auth;
+using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
-namespace DrawingMarketplace.Api.Controllers;
+using Org.BouncyCastle.Asn1.Ocsp;
+using System.Security.Claims;
 
 [ApiController]
 [Route("api/auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly RegisterHandler _register;
-    private readonly VerifyOtpHandler _verify;
-    private readonly ResendOtpHandler _resend;
     private readonly LoginHandler _login;
-    private readonly ForgotPasswordHandler _forgotPassword;
-    private readonly ResetPasswordHandler _resetPassword;
-    private readonly VerifyResetPasswordOtpHandler _verifyResetOtp;
-    private readonly ITokenService _tokens;
     private readonly LogoutHandler _logout;
-    private readonly LogoutAllDevicesHandler _logoutAllDevices;
+    private readonly LogoutAllDevicesHandler _logoutAll;
+    private readonly VerifyOtpHandler _verifyOtp;
+    private readonly ResendOtpHandler _resendOtp;
+    private readonly ForgotPasswordHandler _forgot;
+    private readonly VerifyResetPasswordOtpHandler _verifyReset;
+    private readonly ResetPasswordHandler _reset;
+    private readonly ITokenService _tokens;
 
     public AuthController(
         RegisterHandler register,
-        VerifyOtpHandler verify,
-        ResendOtpHandler resend,
         LoginHandler login,
-        ForgotPasswordHandler forgotPassword,
-        ResetPasswordHandler resetPassword,
-        VerifyResetPasswordOtpHandler verifyResetOtp,
-        ITokenService tokens,
         LogoutHandler logout,
-        LogoutAllDevicesHandler logoutAllDevices)
+        LogoutAllDevicesHandler logoutAll,
+        VerifyOtpHandler verifyOtp,
+        ResendOtpHandler resendOtp,
+        ForgotPasswordHandler forgot,
+        VerifyResetPasswordOtpHandler verifyReset,
+        ResetPasswordHandler reset,
+        ITokenService tokens)
     {
         _register = register;
-        _verify = verify;
-        _resend = resend;
         _login = login;
-        _forgotPassword = forgotPassword;
-        _resetPassword = resetPassword;
-        _verifyResetOtp = verifyResetOtp;
-        _tokens = tokens;
         _logout = logout;
-        _logoutAllDevices = logoutAllDevices;
+        _logoutAll = logoutAll;
+        _verifyOtp = verifyOtp;
+        _resendOtp = resendOtp;
+        _forgot = forgot;
+        _verifyReset = verifyReset;
+        _reset = reset;
+        _tokens = tokens;
     }
 
-
+    [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<IActionResult> Register(RegisterRequest request)
+    public async Task<IActionResult> Register(RegisterRequest req)
     {
-        await _register.ExecuteAsync(request);
+        await _register.ExecuteAsync(req);
         return Accepted();
     }
 
-    [HttpPost("verify-otp")]
-    public async Task<IActionResult> VerifyOtp(VerifyOtpRequest req)
-    {
-        await _verify.ExecuteAsync(req.Email, req.Otp);
-        return NoContent();
-    }
-
-    [HttpPost("resend-otp")]
-    public async Task<IActionResult> ResendOtp(ResendOtpRequest req)
-    {
-        await _resend.ExecuteAsync(req.Email);
-        return Accepted();
-    }
-
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<ActionResult<AuthTokenDTO>> Login(LoginRequest req)
     {
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         var device = Request.Headers["User-Agent"].ToString();
 
-        var data = await _login.ExecuteAsync(
-            req.Email,
-            req.Password,
-            ip,
-            device);
+        var result = await _login.ExecuteAsync(
+            req.Email, req.Password, ip, device);
 
-        return Ok(data);
-    }
-
-
-    [HttpPost("forgot-password")]
-    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest req)
-    {
-        await _forgotPassword.ExecuteAsync(req.Email);
-        return Accepted();
-    }
-
-    [HttpPost("verify-reset-otp")]
-    public async Task<IActionResult> VerifyResetOtp(VerifyResetOtpRequest req)
-    {
-        await _verifyResetOtp.ExecuteAsync(req.Email, req.Otp);
-        return NoContent();
-    }
-
-    [HttpPost("reset-password")]
-    public async Task<IActionResult> ResetPassword(ResetPasswordRequest req)
-    {
-        await _resetPassword.ExecuteAsync(req.Email, req.NewPassword);
-        return NoContent();
-    }
-
-
-    [HttpPost("refresh")]
-    public async Task<ActionResult<AuthTokenDTO>> Refresh(RefreshTokenRequest req)
-    {
-        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var device = Request.Headers["User-Agent"].ToString();
-
-        var data = await _tokens.RefreshAsync(
-            req.RefreshToken,
-            ip,
-            device);
-
-        return Ok(data);
+        return Ok(result);
     }
 
     [Authorize]
@@ -130,27 +77,77 @@ public sealed class AuthController : ControllerBase
 
     [Authorize]
     [HttpPost("logout-all")]
-    public async Task<IActionResult> LogoutAllDevices()
+    public async Task<IActionResult> LogoutAll()
     {
         var userId = Guid.Parse(
             User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-        await _logoutAllDevices.ExecuteAsync(userId);
+        await _logoutAll.ExecuteAsync(userId);
+        return NoContent();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("refresh")]
+    public async Task<ActionResult<AuthTokenDTO>> Refresh(RefreshTokenRequest req)
+    {
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var device = Request.Headers["User-Agent"].ToString();
+
+        var tokens = await _tokens.RefreshAsync(
+            req.RefreshToken, ip, device);
+
+        return Ok(tokens);
+    }
+
+    [AllowAnonymous]
+    [HttpPost("verify-otp")]
+    public async Task<IActionResult> VerifyOtp(VerifyOtpRequest req)
+    {
+        await _verifyOtp.ExecuteAsync(req.Email, req.Otp);
+        return NoContent();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("resend-otp")]
+    public async Task<IActionResult> ResendOtp(ResendOtpRequest req)
+    {
+        await _resendOtp.ExecuteAsync(req.Email);
+        return Accepted();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest req)
+    {
+        await _forgot.ExecuteAsync(req.Email);
+        return Accepted();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("verify-reset-otp")]
+    public async Task<IActionResult> VerifyResetOtp(VerifyResetOtpRequest req)
+    {
+        await _verifyReset.ExecuteAsync(req.Email, req.Otp);
+        return NoContent();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest req)
+    {
+        await _reset.ExecuteAsync(req.Email, req.NewPassword);
         return NoContent();
     }
 
     [Authorize]
-    [HttpGet("me")]
-    public IActionResult Me()
+    [HttpGet("profile")]
+    public IActionResult Profile()
     {
         return Ok(new
         {
-            IsAuth = User.Identity?.IsAuthenticated,
-            Claims = User.Claims.Select(c => new
-            {
-                c.Type,
-                c.Value
-            })
+            id = User.FindFirstValue(ClaimTypes.NameIdentifier),
+            email = User.FindFirstValue(ClaimTypes.Email),
+            role = User.FindFirstValue(ClaimTypes.Role)
         });
     }
 }
