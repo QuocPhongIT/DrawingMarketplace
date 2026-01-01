@@ -4,6 +4,7 @@ using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Domain.Exceptions;
 using DrawingMarketplace.Infrastructure.Services;
 using System.Security.Cryptography;
+using DrawingMarketplace.Application.Interfaces;
 
 namespace DrawingMarketplace.Application.Features.Auth
 {

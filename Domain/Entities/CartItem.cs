@@ -1,19 +1,26 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace DrawingMarketplace.Domain.Entities;
 
-public partial class CartItem
+public class CartItem
 {
-    public Guid CartId { get; set; }
+    public Guid CartId { get; private set; }
+    public Guid ContentId { get; private set; }
+    public decimal Price { get; private set; }
+    public DateTime CreatedAt { get; private set; }
 
-    public Guid ContentId { get; set; }
+    public virtual Cart Cart { get; private set; } = null!;
+    public virtual Content Content { get; private set; } = null!;
 
-    public decimal Price { get; set; }
+    private CartItem() { }
 
-    public DateTime? CreatedAt { get; set; }
-
-    public virtual Cart Cart { get; set; } = null!;
-
-    public virtual Content Content { get; set; } = null!;
+    internal static CartItem Create(Guid contentId, decimal price)
+    {
+        return new CartItem
+        {
+            ContentId = contentId,
+            Price = price,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
 }

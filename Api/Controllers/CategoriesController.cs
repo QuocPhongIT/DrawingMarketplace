@@ -1,4 +1,5 @@
-﻿using DrawingMarketplace.Application.DTOs.Catogory;
+﻿using DrawingMarketplace.Api.Extensions;
+using DrawingMarketplace.Application.DTOs.Catogory;
 using DrawingMarketplace.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,40 +23,51 @@ namespace DrawingMarketplace.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet]
-        public async Task<ActionResult<List<CategoryDto>>> GetAll()
+        public async Task<IActionResult> GetAll()
         {
-            return Ok(await _service.GetAllAsync());
+            var categories = await _service.GetAllAsync();
+            return this.Success(categories, "Lấy danh sách category thành công", "Get categories successfully");
         }
 
         [AllowAnonymous]
         [HttpGet("{id:guid}")]
-        public async Task<ActionResult<CategoryDto>> GetById(Guid id)
+        public async Task<IActionResult> GetById(Guid id)
         {
             var category = await _service.GetByIdAsync(id);
-            return category == null ? NotFound() : Ok(category);
+            if (category == null)
+                return this.NotFound("Category", "Category not found");
+            
+            return this.Success(category, "Lấy chi tiết category thành công", "Get category detail successfully");
         }
 
         [Authorize(Roles = "admin")]
         [HttpPost]
-        public async Task<ActionResult<CategoryDto>> Create(CreateCategoryDto dto)
+        public async Task<IActionResult> Create(CreateCategoryDto dto)
         {
             var created = await _service.CreateAsync(dto);
-            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            return this.Success(created, "Tạo category thành công", "Create category successfully", 201);
         }
 
         [Authorize(Roles = "admin")]
         [HttpPut("{id:guid}")]
-        public async Task<ActionResult<CategoryDto>> Update(Guid id, UpdateCategoryDto dto)
+        public async Task<IActionResult> Update(Guid id, UpdateCategoryDto dto)
         {
             var updated = await _service.UpdateAsync(id, dto);
-            return updated == null ? NotFound() : Ok(updated);
+            if (updated == null)
+                return this.NotFound("Category", "Category not found");
+            
+            return this.Success(updated, "Cập nhật category thành công", "Update category successfully");
         }
 
         [Authorize(Roles = "admin")]
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id)
         {
-            return await _service.DeleteAsync(id) ? NoContent() : NotFound();
+            var deleted = await _service.DeleteAsync(id);
+            if (!deleted)
+                return this.NotFound("Category", "Category not found");
+            
+            return this.Success<object>(null, "Xóa category thành công", "Delete category successfully");
         }
     }
 }

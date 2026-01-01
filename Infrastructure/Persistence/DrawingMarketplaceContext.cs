@@ -17,6 +17,7 @@ public partial class DrawingMarketplaceContext : DbContext
     {
     }
 
+    public virtual DbSet<Banner> Banners { get; set; } = null!;
     public virtual DbSet<Cart> Carts { get; set; }
 
     public virtual DbSet<CartItem> CartItems { get; set; }
@@ -85,7 +86,81 @@ public partial class DrawingMarketplaceContext : DbContext
         //    .HasPostgresEnum("wallet_tx_type", new[] { "credit", "debit", "commission", "withdrawal" })
         //    .HasPostgresEnum("withdrawal_status", new[] { "pending", "approved", "rejected", "paid" })
         //.HasPostgresExtension("pgcrypto");
+        modelBuilder.Entity<Banner>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("banners_pkey");
+            entity.ToTable("banners");
 
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasColumnName("title");
+
+            entity.Property(e => e.Subtitle)
+                .HasColumnName("subtitle");
+
+            entity.Property(e => e.ImageUrl)
+                .IsRequired()
+                .HasColumnName("image_url");
+
+            entity.Property(e => e.Button1Text)
+                .HasColumnName("button1_text");
+
+            entity.Property(e => e.Button1Link)
+                .HasColumnName("button1_link");
+
+            entity.Property(e => e.Button2Text)
+                .HasColumnName("button2_text");
+
+            entity.Property(e => e.Button2Link)
+                .HasColumnName("button2_link");
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+
+            entity.Property(e => e.DisplayOrder)
+                .HasDefaultValue(0)
+                .HasColumnName("display_order");
+
+            entity.Property(e => e.CreatedBy)
+                .HasColumnName("created_by");
+
+            entity.Property(e => e.UpdatedBy)
+                .HasColumnName("updated_by");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            entity.Property(e => e.DeletedAt)
+                .HasColumnName("deleted_at");
+
+            entity.HasOne(d => d.CreatedByNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("banners_created_by_fkey");
+
+            entity.HasOne(d => d.UpdatedByNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.UpdatedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("banners_updated_by_fkey");
+
+            entity.HasIndex(e => new { e.DisplayOrder, e.CreatedAt })
+                .HasFilter("\"is_active\" = TRUE AND \"deleted_at\" IS NULL");
+
+            entity.HasIndex(e => e.DeletedAt);
+            entity.HasIndex(e => e.CreatedBy);
+            entity.HasIndex(e => e.UpdatedBy);
+        });
         modelBuilder.Entity<Cart>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("carts_pkey");
@@ -368,40 +443,60 @@ public partial class DrawingMarketplaceContext : DbContext
                 .HasConstraintName("copyright_reports_reporter_id_fkey");
         });
 
+        modelBuilder.HasPostgresEnum<CouponType>("coupon_type");
+
         modelBuilder.Entity<Coupon>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("coupons_pkey");
-
             entity.ToTable("coupons");
+
+            entity.HasKey(e => e.Id).HasName("coupons_pkey");
 
             entity.HasIndex(e => e.Code, "coupons_code_key").IsUnique();
 
             entity.Property(e => e.Id)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("id");
-            entity.Property(e => e.Code).HasColumnName("code");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
+                .HasColumnName("id")
+                .HasDefaultValueSql("gen_random_uuid()");
+
+            entity.Property(e => e.Code)
+                .HasColumnName("code");
+            entity.Property(e => e.Type)
+                .HasColumnName("type")
+                .HasColumnType("coupon_type")
+                .HasDefaultValueSql("'percent'");
+
+            entity.Property(e => e.Value)
+                .HasPrecision(10, 2)
+                .HasColumnName("value");
+
             entity.Property(e => e.MaxDiscount)
                 .HasPrecision(10, 2)
                 .HasColumnName("max_discount");
+
             entity.Property(e => e.MinOrderAmount)
                 .HasPrecision(10, 2)
                 .HasDefaultValueSql("0")
                 .HasColumnName("min_order_amount");
-            entity.Property(e => e.UsageLimit).HasColumnName("usage_limit");
+
+            entity.Property(e => e.UsageLimit)
+                .HasColumnName("usage_limit");
+
             entity.Property(e => e.UsedCount)
                 .HasDefaultValue(0)
                 .HasColumnName("used_count");
-            entity.Property(e => e.ValidFrom).HasColumnName("valid_from");
-            entity.Property(e => e.ValidTo).HasColumnName("valid_to");
-            entity.Property(e => e.Value)
-                .HasPrecision(10, 2)
-                .HasColumnName("value");
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+
+            entity.Property(e => e.ValidFrom)
+                .HasColumnName("valid_from");
+
+            entity.Property(e => e.ValidTo)
+                .HasColumnName("valid_to");
+
+            entity.Property(e => e.CreatedAt)
+                .HasColumnName("created_at")
+                .HasDefaultValueSql("now()");
         });
 
         modelBuilder.Entity<Download>(entity =>
@@ -432,6 +527,7 @@ public partial class DrawingMarketplaceContext : DbContext
                 .HasConstraintName("downloads_user_id_fkey");
         });
 
+        modelBuilder.HasPostgresEnum<FilePurpose>("file_purpose");
         modelBuilder.Entity<MediaFile>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("files_pkey");
@@ -449,13 +545,21 @@ public partial class DrawingMarketplaceContext : DbContext
             entity.Property(e => e.FileType).HasColumnName("file_type");
             entity.Property(e => e.FileUrl).HasColumnName("file_url");
             entity.Property(e => e.Size).HasColumnName("size");
+            entity.Property(e => e.Purpose)
+                .IsRequired()
+                .HasColumnName("purpose")
+                .HasColumnType("file_purpose")
+                .HasDefaultValueSql("'downloadable'::file_purpose");
+            entity.Property(e => e.DisplayOrder)
+                .HasColumnName("display_order")
+                .HasDefaultValue(0);
 
             entity.HasOne(d => d.Content).WithMany(p => p.Files)
                 .HasForeignKey(d => d.ContentId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("files_content_id_fkey");
         });
-
+        modelBuilder.HasPostgresEnum<OrderStatus>("order_status");
         modelBuilder.Entity<Order>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("orders_pkey");
@@ -473,6 +577,10 @@ public partial class DrawingMarketplaceContext : DbContext
             entity.Property(e => e.Currency)
                 .HasDefaultValueSql("'VND'::text")
                 .HasColumnName("currency");
+            entity.Property(e => e.Status)
+               .HasColumnName("status")
+               .HasColumnType("order_status")
+               .HasDefaultValueSql("'pending'");
             entity.Property(e => e.TotalAmount)
                 .HasPrecision(18, 2)
                 .HasColumnName("total_amount");
@@ -590,7 +698,7 @@ public partial class DrawingMarketplaceContext : DbContext
                 .HasConstraintName("otps_user_id_fkey");
         });
 
-
+        modelBuilder.HasPostgresEnum<PaymentStatus>("payment_status");
         modelBuilder.Entity<Payment>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("payments_pkey");
@@ -605,6 +713,10 @@ public partial class DrawingMarketplaceContext : DbContext
             entity.Property(e => e.Amount)
                 .HasPrecision(18, 2)
                 .HasColumnName("amount");
+            entity.Property(e => e.Status)
+               .HasColumnName("status")
+               .HasColumnType("payment_status")
+               .HasDefaultValueSql("'pending'");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
@@ -639,7 +751,11 @@ public partial class DrawingMarketplaceContext : DbContext
                 .HasColumnType("jsonb")
                 .HasColumnName("raw_response");
             entity.Property(e => e.TransactionId).HasColumnName("transaction_id");
-
+            entity.Property(e => e.PaymentUrl)
+                .HasColumnName("payment_url")
+                .HasMaxLength(1000)
+                .IsUnicode(true)
+                .IsRequired(false);
             entity.HasOne(d => d.Payment).WithMany(p => p.PaymentTransactions)
                 .HasForeignKey(d => d.PaymentId)
                 .OnDelete(DeleteBehavior.Cascade)

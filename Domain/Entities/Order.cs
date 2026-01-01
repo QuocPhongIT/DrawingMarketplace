@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DrawingMarketplace.Domain.Enums;
+using System;
 using System.Collections.Generic;
 
 namespace DrawingMarketplace.Domain.Entities;
@@ -11,7 +12,10 @@ public partial class Order
 
     public decimal TotalAmount { get; set; }
 
+
     public string? Currency { get; set; }
+
+    public OrderStatus Status { get; set; } = OrderStatus.pending;
 
     public DateTime? CreatedAt { get; set; }
 
@@ -23,3 +27,4 @@ public partial class Order
 
     public virtual User? User { get; set; }
 }
+

@@ -1,67 +1,77 @@
 ﻿using DrawingMarketplace.Domain.Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
-namespace DrawingMarketplace.Infrastructure.Persistence
+namespace DrawingMarketplace.Infrastructure.Persistence;
+
+public sealed class UnitOfWork : IUnitOfWork
 {
-    public sealed class UnitOfWork : IUnitOfWork, IDisposable
+    private readonly DrawingMarketplaceContext _context;
+    private IDbContextTransaction? _transaction;
+
+    public UnitOfWork(DrawingMarketplaceContext context)
     {
-        private readonly DrawingMarketplaceContext _context;
-        private IDbContextTransaction? _transaction;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+    }
 
-        public UnitOfWork(DrawingMarketplaceContext context)
+    public async Task BeginTransactionAsync(CancellationToken ct = default)
+    {
+        if (_transaction != null)
+            return;
+
+        _transaction = await _context.Database.BeginTransactionAsync(ct);
+    }
+
+    public Task<int> SaveChangesAsync(CancellationToken ct = default)
+        => _context.SaveChangesAsync(ct);
+
+    public async Task CommitTransactionAsync(CancellationToken ct = default)
+    {
+        if (_transaction == null)
+            return;
+
+        try
         {
-            _context = context;
+            await _context.SaveChangesAsync(ct);
+            await _transaction.CommitAsync(ct);
         }
-
-        public async Task BeginAsync()
+        catch
         {
-            if (_transaction != null)
-                return;
-
-            _transaction = await _context.Database.BeginTransactionAsync();
+            await RollbackTransactionAsync(ct);
+            throw;
         }
-
-        public async Task CommitAsync()
+        finally
         {
-            try
-            {
-                await _context.SaveChangesAsync();
-
-                if (_transaction != null)
-                    await _transaction.CommitAsync();
-            }
-            catch
-            {
-                await RollbackAsync();
-                throw;
-            }
-            finally
-            {
-                await DisposeTransactionAsync();
-            }
-        }
-
-        public async Task RollbackAsync()
-        {
-            if (_transaction != null)
-                await _transaction.RollbackAsync();
-
             await DisposeTransactionAsync();
         }
+    }
 
-        private async Task DisposeTransactionAsync()
-        {
-            if (_transaction != null)
-            {
-                await _transaction.DisposeAsync();
-                _transaction = null;
-            }
-        }
+    public async Task RollbackTransactionAsync(CancellationToken ct = default)
+    {
+        if (_transaction == null)
+            return;
 
-        public void Dispose()
+        await _transaction.RollbackAsync(ct);
+        await DisposeTransactionAsync();
+    }
+
+    private async ValueTask DisposeTransactionAsync()
+    {
+        if (_transaction != null)
         {
-            _transaction?.Dispose();
+            await _transaction.DisposeAsync();
+            _transaction = null;
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeTransactionAsync();
+        await _context.DisposeAsync();
+    }
+
+    public void Dispose()
+    {
+        DisposeTransactionAsync().AsTask().GetAwaiter().GetResult();
+        _context.Dispose();
     }
 }

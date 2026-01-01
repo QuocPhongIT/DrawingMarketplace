@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DrawingMarketplace.Domain.Enums;
+using System;
 using System.Collections.Generic;
 
 namespace DrawingMarketplace.Domain.Entities;
@@ -12,6 +13,8 @@ public partial class Withdrawal
     public Guid? BankId { get; set; }
 
     public decimal Amount { get; set; }
+
+    public WithdrawalStatus Status { get; set; } = WithdrawalStatus.pending;
 
     public DateTime? CreatedAt { get; set; }
 

@@ -3,6 +3,7 @@ using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Enums;
 using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Domain.Exceptions;
+using DrawingMarketplace.Application.Interfaces;
 
 namespace DrawingMarketplace.Application.Features.Auth
 {

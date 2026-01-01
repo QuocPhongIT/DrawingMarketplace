@@ -10,25 +10,23 @@ public static class JwtExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var jwtKey =
-            Environment.GetEnvironmentVariable("JWT_KEY")
-            ?? configuration["Jwt:Key"];
+        var key = configuration["Jwt:Key"];
+        var issuer = configuration["Jwt:Issuer"];
+        var audience = configuration["Jwt:Audience"];
 
-        var jwtIssuer =
-            Environment.GetEnvironmentVariable("JWT_ISSUER")
-            ?? configuration["Jwt:Issuer"];
+        if (string.IsNullOrWhiteSpace(key))
+            throw new InvalidOperationException("Jwt__Key is not configured");
 
-        var jwtAudience =
-            Environment.GetEnvironmentVariable("JWT_AUDIENCE")
-            ?? configuration["Jwt:Audience"];
+        if (string.IsNullOrWhiteSpace(issuer))
+            throw new InvalidOperationException("Jwt__Issuer is not configured");
 
-        if (string.IsNullOrWhiteSpace(jwtKey))
-            throw new InvalidOperationException("JWT_KEY is not configured.");
+        if (string.IsNullOrWhiteSpace(audience))
+            throw new InvalidOperationException("Jwt__Audience is not configured");
 
-        if (Encoding.UTF8.GetBytes(jwtKey).Length < 32)
-            throw new InvalidOperationException("JWT_KEY must be at least 256 bits (32 bytes).");
+        if (Encoding.UTF8.GetBytes(key).Length < 32)
+            throw new InvalidOperationException("Jwt__Key must be at least 256 bits");
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -40,25 +38,16 @@ public static class JwtExtensions
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuer = jwtIssuer,
+                    ValidIssuer = issuer,
 
                     ValidateAudience = true,
-                    ValidAudience = jwtAudience,
+                    ValidAudience = audience,
 
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = key,
+                    IssuerSigningKey = signingKey,
 
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero
-                };
-
-                options.Events = new JwtBearerEvents
-                {
-                    OnAuthenticationFailed = context =>
-                    {
-                        Console.WriteLine($"JWT AUTH FAILED: {context.Exception.Message}");
-                        return Task.CompletedTask;
-                    }
                 };
             });
 

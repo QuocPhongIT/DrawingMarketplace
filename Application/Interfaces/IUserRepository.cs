@@ -1,6 +1,6 @@
 ﻿using DrawingMarketplace.Domain.Entities;
 
-namespace DrawingMarketplace.Domain.Interfaces
+namespace DrawingMarketplace.Application.Interfaces
 {
     public interface IUserRepository
     {

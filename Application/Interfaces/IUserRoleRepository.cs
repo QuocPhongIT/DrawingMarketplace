@@ -1,4 +1,4 @@
-﻿namespace DrawingMarketplace.Domain.Interfaces
+﻿namespace DrawingMarketplace.Application.Interfaces
 {
     public interface IUserRoleRepository
     {

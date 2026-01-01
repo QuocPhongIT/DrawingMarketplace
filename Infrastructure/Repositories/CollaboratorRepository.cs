@@ -1,5 +1,5 @@
-﻿using DrawingMarketplace.Domain.Entities;
-using DrawingMarketplace.Domain.Interfaces;
+﻿using DrawingMarketplace.Application.Interfaces;
+using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

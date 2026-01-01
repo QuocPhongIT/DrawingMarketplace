@@ -1,9 +1,10 @@
 ﻿namespace DrawingMarketplace.Domain.Interfaces
 {
-    public interface IUnitOfWork
+    public interface IUnitOfWork : IAsyncDisposable, IDisposable
     {
-        Task BeginAsync();
-        Task CommitAsync();
-        Task RollbackAsync();
+        Task BeginTransactionAsync(CancellationToken ct = default);
+        Task<int> SaveChangesAsync(CancellationToken ct = default);
+        Task CommitTransactionAsync(CancellationToken ct = default);
+        Task RollbackTransactionAsync(CancellationToken ct = default);
     }
 }

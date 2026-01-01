@@ -1,4 +1,5 @@
-﻿using DrawingMarketplace.Domain.Entities;
+﻿using DrawingMarketplace.Application.Interfaces;
+using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Enums;
 using DrawingMarketplace.Domain.Exceptions;
 using DrawingMarketplace.Domain.Interfaces;
@@ -12,7 +13,8 @@ public sealed class ApproveCollaboratorHandler
     private readonly IUserRoleRepository _userRoles;
     private readonly IUnitOfWork _uow;
 
-    private static readonly Guid CollaboratorRoleId = new Guid("5d8b9e3c-8be4-4815-9fe3-85280f599964");
+    private static readonly Guid CollaboratorRoleId =
+        new("5d8b9e3c-8be4-4815-9fe3-85280f599964");
 
     public ApproveCollaboratorHandler(
         ICollaboratorRequestRepository requests,
@@ -26,7 +28,10 @@ public sealed class ApproveCollaboratorHandler
         _uow = uow;
     }
 
-    public async Task ExecuteAsync(Guid requestId, Guid adminId)
+    public async Task ExecuteAsync(
+     Guid requestId,
+     Guid adminId,
+     CancellationToken ct = default)
     {
         var request = await _requests.GetByIdAsync(requestId)
             ?? throw new NotFoundException("CollaboratorRequest", requestId);
@@ -40,7 +45,8 @@ public sealed class ApproveCollaboratorHandler
         if (await _collaborators.ExistsAsync(request.UserId.Value))
             throw new ConflictException("User is already a collaborator.");
 
-        await _uow.BeginAsync();
+        await _uow.BeginTransactionAsync(ct);
+
         try
         {
             request.Status = CollaboratorRequestStatus.approved;
@@ -56,14 +62,17 @@ public sealed class ApproveCollaboratorHandler
                 CommissionRate = 0
             });
 
-            await _userRoles.AddRoleAsync(request.UserId.Value, CollaboratorRoleId);
+            await _userRoles.AddRoleAsync(
+                request.UserId.Value,
+                CollaboratorRoleId);
 
-            await _uow.CommitAsync();
+            await _uow.CommitTransactionAsync(ct);
         }
         catch
         {
-            await _uow.RollbackAsync();
+            await _uow.RollbackTransactionAsync(ct);
             throw;
         }
     }
+
 }

@@ -16,6 +16,7 @@ public partial class PaymentTransaction
     public string? RawResponse { get; set; }
 
     public DateTime? CreatedAt { get; set; }
+    public string? PaymentUrl { get; set; }
 
     public virtual Payment? Payment { get; set; }
 }

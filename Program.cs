@@ -4,14 +4,25 @@ using DrawingMarketplace.Application;
 using DrawingMarketplace.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
 using DotNetEnv;
+using System.Text.Json.Serialization;
 
 Env.Load();
+
 AppContext.SetSwitch("Npgsql.EnableLegacyNamingConvention", false);
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Configuration.AddEnvironmentVariables();
 
 builder.Services
     .AddApplication()
     .AddInfrastructure(builder.Configuration);
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

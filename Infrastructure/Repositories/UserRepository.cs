@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using DrawingMarketplace.Application.Interfaces;
 using DrawingMarketplace.Domain.Entities;
-using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

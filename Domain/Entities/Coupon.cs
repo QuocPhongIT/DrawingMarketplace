@@ -1,5 +1,7 @@
-﻿using System;
+﻿using DrawingMarketplace.Domain.Enums;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DrawingMarketplace.Domain.Entities;
 
@@ -8,6 +10,9 @@ public partial class Coupon
     public Guid Id { get; set; }
 
     public string Code { get; set; } = null!;
+
+    [Column("type")]
+    public CouponType Type { get; set; }
 
     public decimal Value { get; set; }
 

@@ -1,4 +1,5 @@
-﻿using DrawingMarketplace.Domain.Enums;
+﻿using DrawingMarketplace.Application.Interfaces;
+using DrawingMarketplace.Domain.Enums;
 using DrawingMarketplace.Domain.Exceptions;
 using DrawingMarketplace.Domain.Interfaces;
 
@@ -17,7 +18,10 @@ public sealed class RejectCollaboratorHandler
         _uow = uow;
     }
 
-    public async Task ExecuteAsync(Guid requestId, Guid adminId)
+    public async Task ExecuteAsync(
+        Guid requestId,
+        Guid adminId,
+        CancellationToken ct = default)
     {
         var request = await _requests.GetByIdAsync(requestId)
             ?? throw new NotFoundException("CollaboratorRequest", requestId);
@@ -25,7 +29,8 @@ public sealed class RejectCollaboratorHandler
         if (request.Status != CollaboratorRequestStatus.pending)
             throw new ConflictException("Request has already been processed.");
 
-        await _uow.BeginAsync();
+        await _uow.BeginTransactionAsync(ct);
+
         try
         {
             request.Status = CollaboratorRequestStatus.rejected;
@@ -34,11 +39,11 @@ public sealed class RejectCollaboratorHandler
 
             await _requests.UpdateAsync(request);
 
-            await _uow.CommitAsync();
+            await _uow.CommitTransactionAsync(ct);
         }
         catch
         {
-            await _uow.RollbackAsync();
+            await _uow.RollbackTransactionAsync(ct);
             throw;
         }
     }

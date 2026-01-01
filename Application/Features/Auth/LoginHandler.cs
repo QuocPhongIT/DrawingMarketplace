@@ -2,6 +2,7 @@
 using DrawingMarketplace.Domain.Enums;
 using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Domain.Exceptions;
+using DrawingMarketplace.Application.Interfaces;
 
 namespace DrawingMarketplace.Application.Features.Auth
 {
@@ -27,25 +28,27 @@ namespace DrawingMarketplace.Application.Features.Auth
             string? ipAddress = null,
             string? device = null)
         {
-            var user = await _users.GetByEmailAsync(email);
-            if (user == null)
-                throw new UnauthorizedException("Invalid credentials");
+            var user = await _users.GetByEmailAsync(email)
+                ?? throw new UnauthorizedException("Invalid credentials");
 
             if (user.Status != UserStatus.active)
-                throw new UnauthorizedException("Account not verified");
+                throw new ForbiddenException("Account not verified");
 
             if (!_hasher.Verify(password, user.PasswordHash))
                 throw new UnauthorizedException("Invalid credentials");
 
-            var roles = user.UserRoles
-                .Select(x => x.Role.Name)
-                .ToList();
+            var roles = user.UserRoles?
+                .Where(x => x.Role != null)
+                .Select(x => x.Role!.Name)
+                .ToList()
+                ?? new List<string>();
 
-            var accessToken = _tokens.GenerateAccessToken(user, roles);
+            if (!roles.Any())
+                throw new ConflictException("User has no role assigned");
 
             return new AuthTokenDTO
             {
-                AccessToken = accessToken,
+                AccessToken = _tokens.GenerateAccessToken(user, roles),
                 RefreshToken = await _tokens.GenerateAndStoreRefreshTokenAsync(
                     user.Id, ipAddress, device),
                 ExpiresIn = _tokens.GetAccessTokenExpiryInSeconds(),

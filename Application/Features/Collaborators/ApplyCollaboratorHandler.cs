@@ -1,4 +1,5 @@
-﻿using DrawingMarketplace.Domain.Entities;
+﻿using DrawingMarketplace.Application.Interfaces;
+using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Enums;
 using DrawingMarketplace.Domain.Exceptions;
 using DrawingMarketplace.Domain.Interfaces;
@@ -24,12 +25,13 @@ public sealed class ApplyCollaboratorHandler
     public async Task ExecuteAsync(Guid userId)
     {
         if (await _collaborators.ExistsAsync(userId))
-            throw new ConflictException("You are already a collaborator");
+            throw new ConflictException("You are already a collaborator.");
 
         if (await _requests.HasPendingAsync(userId))
-            throw new ConflictException("You already have a pending request");
+            throw new ConflictException("You already have a pending request.");
 
-        await _uow.BeginAsync();
+        await _uow.BeginTransactionAsync();
+
         try
         {
             var request = new CollaboratorRequest
@@ -41,11 +43,11 @@ public sealed class ApplyCollaboratorHandler
 
             await _requests.AddAsync(request);
 
-            await _uow.CommitAsync();
+            await _uow.CommitTransactionAsync();
         }
         catch
         {
-            await _uow.RollbackAsync();
+            await _uow.RollbackTransactionAsync();
             throw;
         }
     }

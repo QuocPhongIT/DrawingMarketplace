@@ -1,15 +1,22 @@
-﻿namespace DrawingMarketplace.Application.DTOs.Content
+﻿using DrawingMarketplace.Domain.Enums;
+
+namespace DrawingMarketplace.Application.DTOs.Content
 {
-    public class ContentDto
+    public class ContentDetailDto
     {
         public Guid Id { get; set; }
         public string Title { get; set; } = null!;
         public string? Description { get; set; }
         public decimal Price { get; set; }
+        public ContentStatus Status { get; set; }
         public Guid? CategoryId { get; set; }
         public Guid? CollaboratorId { get; set; }
-        public DateTime CreatedAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
         public ContentStatsDto? Stats { get; set; }
+
+        public string ThumbnailUrl { get; set; } = null!;
+        public List<string> PreviewUrls { get; set; } = new List<string>();
     }
 }

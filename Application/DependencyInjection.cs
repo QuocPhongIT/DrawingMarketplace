@@ -1,4 +1,6 @@
-﻿using DrawingMarketplace.Application.Features.Auth;
+﻿using DrawingMarketplace.Application.Common.Services;
+using DrawingMarketplace.Application.Features.Auth;
+using DrawingMarketplace.Application.Features.Cart;
 using DrawingMarketplace.Application.Features.Collaborators;
 using DrawingMarketplace.Application.Interfaces;
 using DrawingMarketplace.Application.Profiles;
@@ -23,10 +25,21 @@ namespace DrawingMarketplace.Application
             services.AddScoped<ApplyCollaboratorHandler>();
             services.AddScoped<ApproveCollaboratorHandler>();
             services.AddScoped<RejectCollaboratorHandler>();
+            services.AddScoped<AddToCartHandler>();
+            services.AddScoped<RemoveCartHandler>();
+            services.AddScoped<GetCartQueryHandler>();
+            services.AddScoped<ClearCartHandler>();
 
             services.AddScoped(typeof(ICrudService<,,,>), typeof(CrudService<,,,>));
             services.AddScoped<ICategoryService, CategoryService>();
             services.AddScoped<IContentService, ContentService>();
+            services.AddScoped<IBannerService, BannerService>();
+            services.AddScoped<ICurrentUserService, CurrentUserService>();
+            services.AddScoped<ICouponService, CouponService>();
+            services.AddScoped<IOrderService, OrderService>();
+            services.AddScoped<IWalletService, WalletService>();
+            services.AddScoped<IWithdrawalService, WithdrawalService>();
+            services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
 
             services.AddAutoMapper(typeof(MappingProfile).Assembly);
 

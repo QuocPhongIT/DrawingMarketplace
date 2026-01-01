@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DrawingMarketplace.Domain.Enums;
+using System;
 using System.Collections.Generic;
 
 namespace DrawingMarketplace.Domain.Entities;
@@ -14,6 +15,8 @@ public partial class Payment
     public decimal Amount { get; set; }
 
     public string PaymentMethod { get; set; } = null!;
+
+    public PaymentStatus Status { get; set; } = PaymentStatus.pending;
 
     public DateTime? CreatedAt { get; set; }
 

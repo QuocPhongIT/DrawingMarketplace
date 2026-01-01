@@ -1,6 +1,6 @@
-﻿using DrawingMarketplace.Domain.Entities;
+﻿using DrawingMarketplace.Application.Interfaces;
+using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Enums;
-using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
