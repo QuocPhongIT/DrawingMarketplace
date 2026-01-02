@@ -5,7 +5,6 @@ using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Org.BouncyCastle.Asn1.Ocsp;
 using System.Security.Claims;
 
 namespace DrawingMarketplace.Api.Controllers
