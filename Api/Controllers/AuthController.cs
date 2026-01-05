@@ -20,7 +20,6 @@ namespace DrawingMarketplace.Api.Controllers
         private readonly VerifyOtpHandler _verifyOtp;
         private readonly ResendOtpHandler _resendOtp;
         private readonly ForgotPasswordHandler _forgot;
-        private readonly VerifyResetPasswordOtpHandler _verifyReset;
         private readonly ResetPasswordHandler _reset;
         private readonly ITokenService _tokens;
 
@@ -32,7 +31,6 @@ namespace DrawingMarketplace.Api.Controllers
             VerifyOtpHandler verifyOtp,
             ResendOtpHandler resendOtp,
             ForgotPasswordHandler forgot,
-            VerifyResetPasswordOtpHandler verifyReset,
             ResetPasswordHandler reset,
             ITokenService tokens)
         {
@@ -43,7 +41,6 @@ namespace DrawingMarketplace.Api.Controllers
             _verifyOtp = verifyOtp;
             _resendOtp = resendOtp;
             _forgot = forgot;
-            _verifyReset = verifyReset;
             _reset = reset;
             _tokens = tokens;
         }
@@ -126,21 +123,19 @@ namespace DrawingMarketplace.Api.Controllers
         }
 
         [AllowAnonymous]
-        [HttpPost("verify-reset-otp")]
-        public async Task<IActionResult> VerifyResetOtp(VerifyResetOtpRequest req)
-        {
-            await _verifyReset.ExecuteAsync(req.Email, req.Otp);
-            return this.Success<object>(null, "Xác thực OTP đặt lại mật khẩu thành công", "Verify reset password OTP successfully");
-        }
-
-        [AllowAnonymous]
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(ResetPasswordRequest req)
         {
-            await _reset.ExecuteAsync(req.Email, req.NewPassword);
-            return this.Success<object>(null, "Đặt lại mật khẩu thành công", "Reset password successfully");
-        }
+            await _reset.ExecuteAsync(
+                req.Email,
+                req.Otp,
+                req.NewPassword);
 
+            return this.Success<object>(
+                null,
+                "Đặt lại mật khẩu thành công",
+                "Reset password successfully");
+        }
         [Authorize]
         [HttpGet("profile")]
         public IActionResult Profile()

@@ -417,31 +417,47 @@ public partial class DrawingMarketplaceContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("content_stats_content_id_fkey");
         });
-
+        modelBuilder.HasPostgresEnum<ReportStatus>("report_status");
         modelBuilder.Entity<CopyrightReport>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("copyright_reports_pkey");
-
             entity.ToTable("copyright_reports");
 
-            entity.Property(e => e.Id)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("id");
-            entity.Property(e => e.ContentId).HasColumnName("content_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Reason).HasColumnName("reason");
-            entity.Property(e => e.ReporterId).HasColumnName("reporter_id");
+            entity.HasKey(e => e.Id)
+                .HasName("copyright_reports_pkey");
 
-            entity.HasOne(d => d.Content).WithMany(p => p.CopyrightReports)
+            entity.Property(e => e.Id)
+                .HasColumnName("id")
+                .HasDefaultValueSql("gen_random_uuid()");
+
+            entity.Property(e => e.ContentId)
+                .HasColumnName("content_id");
+
+            entity.Property(e => e.ReporterId)
+                .HasColumnName("reporter_id");
+
+            entity.Property(e => e.Reason)
+                .HasColumnName("reason");
+
+            entity.Property(e => e.Status)
+                .HasColumnName("status")
+                .HasColumnType("report_status")
+                .HasDefaultValueSql("'pending'");
+
+            entity.Property(e => e.CreatedAt)
+                .HasColumnName("created_at")
+                .HasDefaultValueSql("now()");
+
+            entity.HasOne(d => d.Content)
+                .WithMany(p => p.CopyrightReports)
                 .HasForeignKey(d => d.ContentId)
                 .HasConstraintName("copyright_reports_content_id_fkey");
 
-            entity.HasOne(d => d.Reporter).WithMany(p => p.CopyrightReports)
+            entity.HasOne(d => d.Reporter)
+                .WithMany(p => p.CopyrightReports)
                 .HasForeignKey(d => d.ReporterId)
                 .HasConstraintName("copyright_reports_reporter_id_fkey");
         });
+
 
         modelBuilder.HasPostgresEnum<CouponType>("coupon_type");
 

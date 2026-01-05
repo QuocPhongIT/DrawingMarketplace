@@ -43,6 +43,7 @@ namespace DrawingMarketplace.Infrastructure
                 dataSourceBuilder.MapEnum<WalletOwnerType>("wallet_owner_type");
                 dataSourceBuilder.MapEnum<WalletTxType>("wallet_tx_type");
                 dataSourceBuilder.MapEnum<CouponType>("coupon_type");
+                dataSourceBuilder.MapEnum<ReportStatus>("report_status");
                 options
                     .UseNpgsql(dataSourceBuilder.Build())
                     .EnableSensitiveDataLogging(false)

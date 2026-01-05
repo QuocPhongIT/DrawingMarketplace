@@ -18,7 +18,6 @@ namespace DrawingMarketplace.Application
             services.AddScoped<ResendOtpHandler>();
             services.AddScoped<ForgotPasswordHandler>();
             services.AddScoped<ResetPasswordHandler>();
-            services.AddScoped<VerifyResetPasswordOtpHandler>();
             services.AddScoped<LogoutHandler>();
             services.AddScoped<RefreshTokenHandler>();
             services.AddScoped<LogoutAllDevicesHandler>();
@@ -29,6 +28,8 @@ namespace DrawingMarketplace.Application
             services.AddScoped<RemoveCartHandler>();
             services.AddScoped<GetCartQueryHandler>();
             services.AddScoped<ClearCartHandler>();
+            services.AddScoped<GetAllCollaboratorsHandler>();
+
 
             services.AddScoped(typeof(ICrudService<,,,>), typeof(CrudService<,,,>));
             services.AddScoped<ICategoryService, CategoryService>();
@@ -42,7 +43,7 @@ namespace DrawingMarketplace.Application
             services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
             services.AddScoped<IDownloadService, DownloadService>();
             services.AddScoped<IReviewService, ReviewService>();
-
+            services.AddScoped<ICopyrightReportService, CopyrightReportService>();
 
             services.AddAutoMapper(typeof(MappingProfile).Assembly);
 
