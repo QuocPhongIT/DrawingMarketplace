@@ -4,19 +4,23 @@ using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Domain.Exceptions;
 using DrawingMarketplace.Infrastructure.Services;
 using System.Security.Cryptography;
+using DrawingMarketplace.Application.Interfaces;
 
 namespace DrawingMarketplace.Application.Features.Auth
 {
     public sealed class VerifyOtpHandler
     {
         private readonly IOtpRepository _otps;
+        private readonly IUserRepository _users;
         private readonly IConfiguration _config;
 
         public VerifyOtpHandler(
             IOtpRepository otps,
+            IUserRepository users,
             IConfiguration config)
         {
             _otps = otps;
+            _users = users;
             _config = config;
         }
 
@@ -45,7 +49,15 @@ namespace DrawingMarketplace.Application.Features.Auth
 
             otpEntity.IsUsed = true;
             await _otps.UpdateAsync(otpEntity);
-        }
 
+            var user = await _users.GetByEmailAsync(email)
+                ?? throw new NotFoundException("User", email);
+
+            if (user.Status != UserStatus.active)
+            {
+                user.Status = UserStatus.active;
+                await _users.UpdateAsync(user);
+            }
+        }
     }
 }

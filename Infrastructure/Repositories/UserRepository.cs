@@ -38,6 +38,7 @@ public class UserRepository : IUserRepository
     public async Task UpdateAsync(User user)
     {
         _context.Users.Update(user);
+        await _context.SaveChangesAsync();
     }
 
     public async Task AddRoleAsync(Guid userId, Guid roleId)

@@ -55,49 +55,70 @@ namespace DrawingMarketplace.Application.Services
                 };
                 _context.Payments.Add(payment);
 
-                await _context.SaveChangesAsync(); 
+                var cart = await _context.Carts
+                    .Include(c => c.CartItems)
+                    .FirstOrDefaultAsync(c => c.UserId == userId);
 
-                string? paymentUrl = null;
+                if (cart == null)
+                    throw new Exception("Giỏ hàng không tồn tại");
+
+                if (!cart.CartItems.Any())
+                    throw new Exception("Giỏ hàng trống");
+
+                var contentMap = await _context.Contents
+                    .Where(c => cart.CartItems.Select(ci => ci.ContentId).Contains(c.Id))
+                    .Select(c => new { c.Id, c.CollaboratorId })
+                    .ToDictionaryAsync(x => x.Id, x => x.CollaboratorId);
+
+                foreach (var cartItem in cart.CartItems)
+                {
+                    if (!contentMap.TryGetValue(cartItem.ContentId, out var collaboratorId))
+                        continue;
+
+                    _context.OrderItems.Add(new OrderItem
+                    {
+                        OrderId = order.Id,
+                        ContentId = cartItem.ContentId,
+                        Price = cartItem.Price,
+                        CollaboratorId = collaboratorId
+                    });
+                }
+
+                _context.CartItems.RemoveRange(cart.CartItems);
+                _context.Carts.Remove(cart);
+
+                await _context.SaveChangesAsync();
 
                 if (dto.PaymentMethod.Equals("vnpay", StringComparison.OrdinalIgnoreCase))
                 {
-                    var createPaymentRequest = new CreatePaymentRequest
-                    {
-                        OrderId = order.Id.ToString(),
-                        Amount = payment.Amount,
-                        Description = $"Thanh toán đơn hàng #{order.Id}"
-                    };
-
                     var paymentResult = await _paymentGatewayService
                         .GetGateway("vnpay")
-                        .CreatePaymentAsync(createPaymentRequest);
-
-                    if (paymentResult.Success && !string.IsNullOrEmpty(paymentResult.PaymentUrl))
-                    {
-                        paymentUrl = paymentResult.PaymentUrl;
-                        var paymentTx = new PaymentTransaction
+                        .CreatePaymentAsync(new CreatePaymentRequest
                         {
-                            Id = Guid.NewGuid(),
-                            PaymentId = payment.Id,
-                            Provider = "vnpay",
-                            TransactionId = paymentResult.TransactionId,
-                            PaymentUrl = paymentResult.PaymentUrl, 
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        _context.PaymentTransactions.Add(paymentTx);
-                    }
-                    else
-                    {
+                            OrderId = order.Id.ToString(),
+                            Amount = payment.Amount,
+                            Description = $"Thanh toán đơn hàng #{order.Id}"
+                        });
+
+                    if (!paymentResult.Success || string.IsNullOrEmpty(paymentResult.PaymentUrl))
                         throw new Exception("Không thể tạo link thanh toán VNPAY");
-                    }
+
+                    _context.PaymentTransactions.Add(new PaymentTransaction
+                    {
+                        Id = Guid.NewGuid(),
+                        PaymentId = payment.Id,
+                        Provider = "vnpay",
+                        TransactionId = paymentResult.TransactionId,
+                        PaymentUrl = paymentResult.PaymentUrl,
+                        CreatedAt = DateTime.UtcNow
+                    });
                 }
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                var orderDto = await MapToOrderDtoAsync(order.Id);
-
-                return orderDto ?? throw new Exception("Không thể lấy thông tin đơn hàng sau khi tạo");
+                return await MapToOrderDtoAsync(order.Id)
+                       ?? throw new Exception("Không thể lấy thông tin đơn hàng");
             }
             catch
             {
@@ -119,18 +140,23 @@ namespace DrawingMarketplace.Application.Services
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync();
 
-            var list = new List<OrderDto>();
+            var result = new List<OrderDto>();
             foreach (var order in orders)
             {
-                list.Add(await MapToOrderDtoAsync(order.Id));
+                var dto = await MapToOrderDtoAsync(order.Id);
+                if (dto != null)
+                    result.Add(dto);
             }
-            return list;
+            return result;
         }
 
         public async Task ProcessPaymentCallbackAsync(Guid paymentId, string status, string transactionId)
         {
             var payment = await _context.Payments
                 .Include(p => p.Order)
+                    .ThenInclude(o => o.OrderItems)
+                .Include(p => p.Order)
+                    .ThenInclude(o => o.User)
                 .FirstOrDefaultAsync(p => p.Id == paymentId);
 
             if (payment == null || payment.Order == null)
@@ -138,9 +164,16 @@ namespace DrawingMarketplace.Application.Services
 
             if (status.ToLower() == "success")
             {
+                if (payment.Status == PaymentStatus.success)
+                    return;
+
                 payment.Status = PaymentStatus.success;
                 payment.Order.Status = OrderStatus.paid;
+
+                await GrantDownloadsAsync(payment.Order);
+                await ProcessCommissionsAsync(payment.Order);
             }
+
             else
             {
                 payment.Status = PaymentStatus.failed;
@@ -162,6 +195,85 @@ namespace DrawingMarketplace.Application.Services
             await _context.SaveChangesAsync();
             return true;
         }
+
+        private async Task ProcessCommissionsAsync(Order order)
+        {
+            var orderItems = await _context.OrderItems
+                .Where(oi => oi.OrderId == order.Id && oi.CollaboratorId != null)
+                .Include(oi => oi.Collaborator)
+                .ToListAsync();
+
+            foreach (var item in orderItems)
+            {
+                var collaborator = item.Collaborator;
+                if (collaborator == null) continue;
+
+                var rate = collaborator.CommissionRate.GetValueOrDefault(10m);
+                if (rate <= 0 || item.Price <= 0) continue;
+
+                var amount = item.Price * rate / 100m;
+                if (amount <= 0) continue;
+
+                var wallet = await _context.Wallets.FirstOrDefaultAsync(w =>
+                    w.OwnerType == WalletOwnerType.collaborator &&
+                    w.OwnerId == collaborator.Id);
+
+                if (wallet == null)
+                {
+                    wallet = new Wallet
+                    {
+                        Id = Guid.NewGuid(),
+                        OwnerType = WalletOwnerType.collaborator,
+                        OwnerId = collaborator.Id,
+                        Balance = 0,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.Wallets.Add(wallet);
+                }
+
+                wallet.Balance += amount;
+                wallet.UpdatedAt = DateTime.UtcNow;
+
+                _context.WalletTransactions.Add(new WalletTransaction
+                {
+                    Id = Guid.NewGuid(),
+                    WalletId = wallet.Id,
+                    Type = WalletTxType.commission,
+                    Amount = amount,
+                    ReferenceId = order.Id,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+        private async Task GrantDownloadsAsync(Order order)
+        {
+            var userId = order.UserId;
+
+            var contentIds = order.OrderItems
+                .Select(oi => oi.ContentId)
+                .Distinct()
+                .ToList();
+
+            var existingContentIds = await _context.Downloads
+                .Where(d => d.UserId == userId && contentIds.Contains(d.ContentId!.Value))
+                .Select(d => d.ContentId!.Value)
+                .ToListAsync();
+
+            var downloads = contentIds
+                .Except(existingContentIds)
+                .Select(contentId => new Download
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    ContentId = contentId,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+            await _context.Downloads.AddRangeAsync(downloads);
+        }
+
         private async Task<OrderDto?> MapToOrderDtoAsync(Guid orderId)
         {
             var order = await _context.Orders
@@ -190,7 +302,7 @@ namespace DrawingMarketplace.Application.Services
                     CollaboratorId = oi.CollaboratorId,
                     Price = oi.Price
                 }).ToList(),
-                Payment = order.Payment != null ? new PaymentDto
+                Payment = order.Payment == null ? null : new PaymentDto
                 {
                     Id = order.Payment.Id,
                     OrderId = order.Payment.OrderId,
@@ -198,15 +310,15 @@ namespace DrawingMarketplace.Application.Services
                     PaymentMethod = order.Payment.PaymentMethod,
                     Status = order.Payment.Status,
                     PaymentUrl = order.Payment.PaymentTransactions
-                                 .OrderByDescending(t => t.CreatedAt)
-                                 .FirstOrDefault()?.PaymentUrl,
+                        .OrderByDescending(t => t.CreatedAt)
+                        .FirstOrDefault()?.PaymentUrl,
                     CreatedAt = order.Payment.CreatedAt
-                } : null,
-                Coupon = order.OrderCoupon != null ? new CouponDto
+                },
+                Coupon = order.OrderCoupon == null ? null : new CouponDto
                 {
                     Code = order.OrderCoupon.Coupon?.Code ?? "",
                     DiscountAmount = order.OrderCoupon.DiscountAmount
-                } : null
+                }
             };
         }
     }

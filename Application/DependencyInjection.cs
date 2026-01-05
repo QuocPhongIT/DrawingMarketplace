@@ -40,6 +40,9 @@ namespace DrawingMarketplace.Application
             services.AddScoped<IWalletService, WalletService>();
             services.AddScoped<IWithdrawalService, WithdrawalService>();
             services.AddScoped<IPaymentGatewayService, PaymentGatewayService>();
+            services.AddScoped<IDownloadService, DownloadService>();
+            services.AddScoped<IReviewService, ReviewService>();
+
 
             services.AddAutoMapper(typeof(MappingProfile).Assembly);
 

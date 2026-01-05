@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace DrawingMarketplace.Domain.Entities;
 
-public partial class Review
+public partial class Review : BaseEntity
 {
     public Guid Id { get; set; }
 
