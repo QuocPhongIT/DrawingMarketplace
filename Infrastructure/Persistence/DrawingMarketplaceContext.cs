@@ -446,6 +446,11 @@ public partial class DrawingMarketplaceContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasColumnName("created_at")
                 .HasDefaultValueSql("now()");
+            entity.Property(e => e.ProcessedAt)
+                .HasColumnName("processed_at");
+
+            entity.Property(e => e.ProcessedBy)
+                .HasColumnName("processed_by");
 
             entity.HasOne(d => d.Content)
                 .WithMany(p => p.CopyrightReports)
@@ -532,6 +537,10 @@ public partial class DrawingMarketplaceContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.DownloadCount)
+                .HasColumnName("download_count")
+                .HasDefaultValue(0);
+
             entity.Property(e => e.UserId).HasColumnName("user_id");
 
             entity.HasOne(d => d.Content).WithMany(p => p.Downloads)
@@ -565,10 +574,12 @@ public partial class DrawingMarketplaceContext : DbContext
                 .IsRequired()
                 .HasColumnName("purpose")
                 .HasColumnType("file_purpose")
-                .HasDefaultValueSql("'downloadable'::file_purpose");
+                .ValueGeneratedNever(); 
             entity.Property(e => e.DisplayOrder)
                 .HasColumnName("display_order")
                 .HasDefaultValue(0);
+            entity.Property(e => e.PublicId)
+                .HasColumnName("public_id");
 
             entity.HasOne(d => d.Content).WithMany(p => p.Files)
                 .HasForeignKey(d => d.ContentId)
@@ -983,27 +994,35 @@ public partial class DrawingMarketplaceContext : DbContext
                 .HasForeignKey(d => d.WalletId)
                 .HasConstraintName("wallet_transactions_wallet_id_fkey");
         });
-
+        modelBuilder.HasPostgresEnum<WithdrawalStatus>("withdrawal_status");
         modelBuilder.Entity<Withdrawal>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("withdrawals_pkey");
-
             entity.ToTable("withdrawals");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
+
             entity.Property(e => e.Amount)
                 .HasPrecision(18, 2)
                 .HasColumnName("amount");
+
             entity.Property(e => e.BankId).HasColumnName("bank_id");
+
             entity.Property(e => e.CollaboratorId).HasColumnName("collaborator_id");
+
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
-            entity.Property(e => e.ProcessedAt).HasColumnName("processed_at");
-            entity.Property(e => e.ProcessedBy).HasColumnName("processed_by");
 
+            entity.Property(e => e.ProcessedAt).HasColumnName("processed_at");
+
+            entity.Property(e => e.ProcessedBy).HasColumnName("processed_by");
+            entity.Property(e => e.Status)
+                  .HasColumnName("status")  
+                  .HasColumnType("withdrawal_status") 
+                  .HasDefaultValue(WithdrawalStatus.pending); 
             entity.HasOne(d => d.Bank).WithMany(p => p.Withdrawals)
                 .HasForeignKey(d => d.BankId)
                 .HasConstraintName("withdrawals_bank_id_fkey");

@@ -27,7 +27,6 @@ namespace DrawingMarketplace.Infrastructure
                 throw new InvalidOperationException(
                     "DATABASE_CONNECTION is not configured.");
             }
-
             services.AddDbContext<DrawingMarketplaceContext>(options =>
             {
                 var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
@@ -74,6 +73,10 @@ namespace DrawingMarketplace.Infrastructure
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IPaymentGateway, VnPayGateway>();
+            services.AddScoped<ICollaboratorBankRepository, CollaboratorBankRepository>();
+
+            services.AddHttpClient();
+
             services.AddHttpContextAccessor();
 
             return services;

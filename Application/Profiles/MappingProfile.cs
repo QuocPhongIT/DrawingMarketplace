@@ -33,6 +33,8 @@ namespace DrawingMarketplace.Application.Profiles
             CreateMap<OrderCoupon, CouponDto>()
                 .ForMember(dest => dest.Code, opt => opt.MapFrom(src => src.Coupon.Code))
                 .ForMember(dest => dest.DiscountAmount, opt => opt.MapFrom(src => src.DiscountAmount));
+            CreateMap<ContentListDto, ContentStatsAdminDto>();
+            CreateMap<ContentListDto, ContentStatsCollaboratorDto>();
         }
     }
 }

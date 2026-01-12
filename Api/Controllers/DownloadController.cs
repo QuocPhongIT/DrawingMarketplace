@@ -16,11 +16,23 @@ namespace DrawingMarketplace.Api.Controllers
         }
 
         [Authorize]
-        [HttpGet("contents/{contentId}/download")]
-        public async Task<IActionResult> Download(Guid contentId)
+        [HttpGet("contents/{contentId}/downloads")]
+        public async Task<IActionResult> GetDownloadFiles(Guid contentId)
         {
             var files = await _downloadService.GetDownloadFilesAsync(contentId);
             return Ok(files);
+        }
+
+        [HttpGet("{contentId}/downloads/{fileId}")]
+        public async Task<IActionResult> DownloadFile(Guid contentId, Guid fileId)
+        {
+            var result = await _downloadService.DownloadFileAsync(contentId, fileId);
+
+            return File(
+                result.Stream,
+                result.ContentType ?? "application/pdf",
+                result.FileName
+            );
         }
     }
 }

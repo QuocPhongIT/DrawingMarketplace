@@ -19,7 +19,11 @@ namespace DrawingMarketplace.Infrastructure.Repositories
             return await _db.Collaborators
                 .AnyAsync(c => c.UserId == userId && c.DeletedAt == null);
         }
-
+        public async Task<Collaborator?> GetByUserIdAsync(Guid userId)
+        {
+            return await _db.Collaborators
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+        }
         public async Task AddAsync(Collaborator collaborator)
         {
             _db.Collaborators.Add(collaborator);

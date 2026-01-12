@@ -1,9 +1,10 @@
-﻿using DrawingMarketplace.Application.DTOs.MediaFile;
+﻿using DrawingMarketplace.Application.DTOs.Download;
+using DrawingMarketplace.Application.DTOs.MediaFile;
 
-namespace DrawingMarketplace.Application.Interfaces
+public interface IDownloadService
 {
-    public interface IDownloadService
-    {
-        Task<List<MediaFileDto>> GetDownloadFilesAsync(Guid contentId);
-    }
+    Task<List<MediaFileDto>> GetDownloadFilesAsync(Guid contentId);
+
+    Task<DownloadFileResult> DownloadFileAsync(Guid contentId, Guid fileId);
+
 }

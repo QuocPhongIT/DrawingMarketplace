@@ -3,26 +3,27 @@ using DrawingMarketplace.Application.Interfaces;
 using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Enums;
 using DrawingMarketplace.Domain.Exceptions;
+using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace DrawingMarketplace.Application.Services
 {
-    public sealed class CopyrightReportService
-        : ICopyrightReportService
+    public sealed class CopyrightReportService : ICopyrightReportService
     {
         private readonly DrawingMarketplaceContext _context;
         private readonly ICurrentUserService _currentUser;
+        private readonly IEmailService _emailService;
 
         public CopyrightReportService(
             DrawingMarketplaceContext context,
-            ICurrentUserService currentUser)
+            ICurrentUserService currentUser,
+            IEmailService emailService)
         {
             _context = context;
             _currentUser = currentUser;
+            _emailService = emailService;
         }
-
-        // ================= USER =================
 
         public async Task CreateAsync(CreateCopyrightReportRequest request)
         {
@@ -30,6 +31,8 @@ namespace DrawingMarketplace.Application.Services
                 ?? throw new UnauthorizedException();
 
             var content = await _context.Contents
+                .Include(c => c.Collaborator)
+                .ThenInclude(c => c!.User)
                 .FirstOrDefaultAsync(x => x.Id == request.ContentId)
                 ?? throw new NotFoundException("Content", request.ContentId);
 
@@ -37,9 +40,7 @@ namespace DrawingMarketplace.Application.Services
                 throw new ForbiddenException("Không thể report sản phẩm của chính bạn");
 
             var exists = await _context.CopyrightReports
-                .AnyAsync(x =>
-                    x.ContentId == request.ContentId &&
-                    x.ReporterId == userId);
+                .AnyAsync(x => x.ContentId == request.ContentId && x.ReporterId == userId);
 
             if (exists)
                 throw new BadRequestException("Bạn đã report nội dung này");
@@ -57,8 +58,6 @@ namespace DrawingMarketplace.Application.Services
             _context.CopyrightReports.Add(report);
             await _context.SaveChangesAsync();
         }
-
-        // ================= ADMIN =================
 
         public async Task<List<CopyrightReportDto>> GetAllAsync()
         {
@@ -104,6 +103,9 @@ namespace DrawingMarketplace.Application.Services
         {
             var report = await _context.CopyrightReports
                 .Include(r => r.Content)
+                .ThenInclude(c => c!.Collaborator)
+                .ThenInclude(c => c!.User)
+                .Include(r => r.Reporter)
                 .FirstOrDefaultAsync(r => r.Id == reportId);
 
             if (report == null)
@@ -112,17 +114,55 @@ namespace DrawingMarketplace.Application.Services
             if (report.Status != ReportStatus.pending)
                 throw new BadRequestException("Report đã được xử lý");
 
-            report.Status = ReportStatus.approved;
-            report.Content!.Status = ContentStatus.archived;
+            using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                report.Status = ReportStatus.approved;
+                report.ProcessedAt = DateTime.UtcNow;
+                report.ProcessedBy = _currentUser.UserId;
 
-            await _context.SaveChangesAsync();
-            return true;
+                report.Content!.Status = ContentStatus.archived;
+                report.Content.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                var reporterEmail = report.Reporter?.Email;
+                if (!string.IsNullOrEmpty(reporterEmail))
+                {
+                    await _emailService.SendCopyrightReportProcessedAsync(
+                        reporterEmail,
+                        report.Content.Title ?? "Nội dung",
+                        "approved",
+                        "Báo cáo của bạn đã được chấp nhận. Nội dung vi phạm đã bị khóa và ẩn khỏi hệ thống."
+                    );
+                }
+
+                var collaboratorEmail = report.Content.Collaborator?.User?.Email;
+                if (!string.IsNullOrEmpty(collaboratorEmail))
+                {
+                    await _emailService.SendCopyrightReportProcessedAsync(
+                        collaboratorEmail,
+                        report.Content.Title ?? "Nội dung của bạn",
+                        "locked",
+                        "Nội dung của bạn đã bị khóa và ẩn do vi phạm bản quyền theo báo cáo được chấp nhận."
+                    );
+                }
+
+                return true;
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
         }
-
 
         public async Task<bool> RejectAsync(Guid reportId)
         {
             var report = await _context.CopyrightReports
+                .Include(r => r.Content)
+                .Include(r => r.Reporter)
                 .FirstOrDefaultAsync(r => r.Id == reportId);
 
             if (report == null)
@@ -132,7 +172,21 @@ namespace DrawingMarketplace.Application.Services
                 throw new BadRequestException("Report đã được xử lý");
 
             report.Status = ReportStatus.rejected;
+            report.ProcessedAt = DateTime.UtcNow;
+            report.ProcessedBy = _currentUser.UserId;
+
             await _context.SaveChangesAsync();
+
+            var reporterEmail = report.Reporter?.Email;
+            if (!string.IsNullOrEmpty(reporterEmail))
+            {
+                await _emailService.SendCopyrightReportProcessedAsync(
+                    reporterEmail,
+                    report.Content?.Title ?? "Nội dung",
+                    "rejected",
+                    "Báo cáo của bạn đã bị từ chối. Nội dung vẫn hoạt động bình thường."
+                );
+            }
 
             return true;
         }

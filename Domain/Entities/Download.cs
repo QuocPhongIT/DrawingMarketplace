@@ -7,9 +7,10 @@ public partial class Download
 {
     public Guid Id { get; set; }
 
-    public Guid? UserId { get; set; }
+    public Guid UserId { get; set; }
 
-    public Guid? ContentId { get; set; }
+    public Guid ContentId { get; set; }
+    public int DownloadCount { get; set; } = 0;
 
     public DateTime? CreatedAt { get; set; }
 

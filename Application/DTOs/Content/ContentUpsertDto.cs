@@ -8,18 +8,21 @@ namespace DrawingMarketplace.Application.DTOs.Content
         {
             [Required(ErrorMessage = "Tiêu đề là bắt buộc")]
             public string Title { get; set; } = null!;
+
             public string? Description { get; set; }
-            
+
             [Range(0, double.MaxValue, ErrorMessage = "Giá phải lớn hơn hoặc bằng 0")]
             public decimal Price { get; set; }
+
             public Guid? CategoryId { get; set; }
+
             public Guid? CollaboratorId { get; set; }
-            
+
             [Required(ErrorMessage = "Ảnh thumbnail là bắt buộc")]
             public IFormFile ThumbnailFile { get; set; } = null!;
-            
+
             public List<IFormFile>? PreviewFiles { get; set; }
-            
+
             public List<IFormFile>? DownloadableFiles { get; set; }
         }
 
@@ -27,19 +30,25 @@ namespace DrawingMarketplace.Application.DTOs.Content
         {
             [Required(ErrorMessage = "Tiêu đề là bắt buộc")]
             public string Title { get; set; } = null!;
+
             public string? Description { get; set; }
-            
+
             [Range(0, double.MaxValue, ErrorMessage = "Giá phải lớn hơn hoặc bằng 0")]
             public decimal Price { get; set; }
+
             public Guid? CategoryId { get; set; }
-            
+
             public IFormFile? ThumbnailFile { get; set; }
-            
-            public List<IFormFile>? PreviewFiles { get; set; }
-            
-            public List<IFormFile>? DownloadableFiles { get; set; }
-            
-            public List<Guid>? FilesToDelete { get; set; }
+
+            public List<IFormFile>? NewPreviewFiles { get; set; }
+
+            public List<IFormFile>? NewDownloadableFiles { get; set; }
+
+            public List<Guid> KeepPreviewFileIds { get; set; } = new();
+
+            public List<Guid> KeepDownloadableFileIds { get; set; } = new();
+
+            public List<Guid> PreviewFileOrder { get; set; } = new();
         }
     }
 }

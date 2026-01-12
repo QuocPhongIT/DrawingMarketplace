@@ -9,6 +9,7 @@ public class MediaFile : BaseEntity
     public Guid Id { get; set; }
 
     public Guid ContentId { get; set; }
+    public string? PublicId { get; set; }
 
     public string FileName { get; set; } = null!;
     public string FileUrl { get; set; } = null!; 

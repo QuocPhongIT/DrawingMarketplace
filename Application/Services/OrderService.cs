@@ -41,6 +41,7 @@ namespace DrawingMarketplace.Application.Services
                     Status = OrderStatus.pending,
                     CreatedAt = DateTime.UtcNow
                 };
+
                 _context.Orders.Add(order);
 
                 var payment = new Payment
@@ -53,6 +54,7 @@ namespace DrawingMarketplace.Application.Services
                     Status = PaymentStatus.pending,
                     CreatedAt = DateTime.UtcNow
                 };
+
                 _context.Payments.Add(payment);
 
                 var cart = await _context.Carts
@@ -147,15 +149,16 @@ namespace DrawingMarketplace.Application.Services
                 if (dto != null)
                     result.Add(dto);
             }
+
             return result;
         }
 
         public async Task ProcessPaymentCallbackAsync(Guid paymentId, string status, string transactionId)
         {
             var payment = await _context.Payments
-                .Include(p => p.Order)
+                .Include(p => p.Order!)
                     .ThenInclude(o => o.OrderItems)
-                .Include(p => p.Order)
+                .Include(p => p.Order!)
                     .ThenInclude(o => o.User)
                 .FirstOrDefaultAsync(p => p.Id == paymentId);
 
@@ -170,10 +173,10 @@ namespace DrawingMarketplace.Application.Services
                 payment.Status = PaymentStatus.success;
                 payment.Order.Status = OrderStatus.paid;
 
+                await UpdateContentStatsAsync(payment.Order);
                 await GrantDownloadsAsync(payment.Order);
                 await ProcessCommissionsAsync(payment.Order);
             }
-
             else
             {
                 payment.Status = PaymentStatus.failed;
@@ -193,6 +196,7 @@ namespace DrawingMarketplace.Application.Services
 
             order.Status = OrderStatus.cancelled;
             await _context.SaveChangesAsync();
+
             return true;
         }
 
@@ -200,7 +204,7 @@ namespace DrawingMarketplace.Application.Services
         {
             var orderItems = await _context.OrderItems
                 .Where(oi => oi.OrderId == order.Id && oi.CollaboratorId != null)
-                .Include(oi => oi.Collaborator)
+                .Include(oi => oi.Collaborator!)
                 .ToListAsync();
 
             foreach (var item in orderItems)
@@ -247,9 +251,10 @@ namespace DrawingMarketplace.Application.Services
 
             await _context.SaveChangesAsync();
         }
+
         private async Task GrantDownloadsAsync(Order order)
         {
-            var userId = order.UserId;
+            Guid userId = order.UserId ?? throw new InvalidOperationException("Order.UserId cannot be null");
 
             var contentIds = order.OrderItems
                 .Select(oi => oi.ContentId)
@@ -257,32 +262,35 @@ namespace DrawingMarketplace.Application.Services
                 .ToList();
 
             var existingContentIds = await _context.Downloads
-                .Where(d => d.UserId == userId && contentIds.Contains(d.ContentId!.Value))
-                .Select(d => d.ContentId!.Value)
+                .Where(d => d.UserId == userId && contentIds.Contains(d.ContentId))
+                .Select(d => d.ContentId)
                 .ToListAsync();
 
-            var downloads = contentIds
-                .Except(existingContentIds)
-                .Select(contentId => new Download
+            var contentIdsToGrant = contentIds.Except(existingContentIds);
+
+            if (contentIdsToGrant.Any())
+            {
+                var newDownloads = contentIdsToGrant.Select(contentId => new Download
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
                     ContentId = contentId,
                     CreatedAt = DateTime.UtcNow
-                });
+                }).ToList();
 
-            await _context.Downloads.AddRangeAsync(downloads);
+                await _context.Downloads.AddRangeAsync(newDownloads);
+                await _context.SaveChangesAsync();
+            }
         }
-
         private async Task<OrderDto?> MapToOrderDtoAsync(Guid orderId)
         {
             var order = await _context.Orders
                 .Include(o => o.Payment)
-                    .ThenInclude(p => p.PaymentTransactions)
+                    .ThenInclude(p => p!.PaymentTransactions)
                 .Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.Content)
                 .Include(o => o.OrderCoupon)
-                    .ThenInclude(oc => oc.Coupon)
+                    .ThenInclude(oc => oc!.Coupon)
                 .FirstOrDefaultAsync(o => o.Id == orderId);
 
             if (order == null) return null;
@@ -320,6 +328,31 @@ namespace DrawingMarketplace.Application.Services
                     DiscountAmount = order.OrderCoupon.DiscountAmount
                 }
             };
+        }
+
+        private async Task UpdateContentStatsAsync(Order order)
+        {
+            var contentIds = order.OrderItems
+                .Select(oi => oi.ContentId)
+                .Distinct()
+                .ToList();
+
+            foreach (var contentId in contentIds)
+            {
+                var updated = await _context.Database.ExecuteSqlRawAsync(
+                    @"UPDATE content_stats 
+                      SET purchases = purchases + 1, downloads = downloads + 1 
+                      WHERE content_id = {0}",
+                    contentId);
+
+                if (updated == 0)
+                {
+                    await _context.Database.ExecuteSqlRawAsync(
+                        @"INSERT INTO content_stats (content_id, views, downloads, purchases)
+                          VALUES ({0}, 0, 1, 1)",
+                        contentId);
+                }
+            }
         }
     }
 }

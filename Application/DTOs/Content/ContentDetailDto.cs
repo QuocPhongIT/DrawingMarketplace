@@ -1,4 +1,5 @@
-﻿using DrawingMarketplace.Domain.Enums;
+﻿using DrawingMarketplace.Application.DTOs.MediaFile;
+using DrawingMarketplace.Domain.Enums;
 
 namespace DrawingMarketplace.Application.DTOs.Content
 {
@@ -11,12 +12,14 @@ namespace DrawingMarketplace.Application.DTOs.Content
         public ContentStatus Status { get; set; }
         public Guid? CategoryId { get; set; }
         public Guid? CollaboratorId { get; set; }
-        public DateTime? CreatedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         public ContentStatsDto? Stats { get; set; }
 
         public string ThumbnailUrl { get; set; } = null!;
-        public List<string> PreviewUrls { get; set; } = new List<string>();
+
+        public List<MediaFileDto> PreviewFiles { get; set; } = new();
+        public List<MediaFileDto> DownloadableFiles { get; set; } = new();
     }
 }

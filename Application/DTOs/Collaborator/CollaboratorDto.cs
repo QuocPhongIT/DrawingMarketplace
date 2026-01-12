@@ -17,5 +17,9 @@ namespace DrawingMarketplace.Application.DTOs.Collaborator
         public decimal? CommissionRate { get; set; }
 
         public DateTime? CreatedAt { get; set; }
+        public bool HasBankAccount => Banks != null && Banks.Any();
+
+        public IReadOnlyList<CollaboratorBankDto> Banks { get; set; }
+            = new List<CollaboratorBankDto>();
     }
 }

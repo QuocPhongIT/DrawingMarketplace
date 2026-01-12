@@ -2,27 +2,22 @@
 
 namespace DrawingMarketplace.Application.DTOs.Content
 {
-    public class ContentListDto
+    public class ContentStatsAdminDto
     {
         public Guid Id { get; set; }
 
-        public string Title { get; set; } = null!;
+        public string Title { get; set; } = string.Empty;
 
-        public string? Description { get; set; }
+        public string ThumbnailUrl { get; set; } = string.Empty;
 
         public decimal Price { get; set; }
 
         public ContentStatus Status { get; set; }
 
-        public Guid? CategoryId { get; set; }
-
         public DateTime CreatedAt { get; set; }
 
-        public string? ThumbnailUrl { get; set; }
-
-        public List<string> PreviewUrls { get; set; } = new();
-
-        public Guid CollaboratorId { get; set; } = Guid.Empty;
+        public DateTime? UpdatedAt { get; set; }
+        public Guid CollaboratorId { get; set; }
 
         public string CollaboratorUsername { get; set; } = string.Empty;
 
@@ -32,8 +27,9 @@ namespace DrawingMarketplace.Application.DTOs.Content
 
         public int Downloads { get; set; }
 
-        public decimal TotalRevenue { get; set; }
-
-        public double ConversionRate { get; set; }
+        public decimal TotalRevenue => Price * Purchases;      
+        public double ConversionRate => Views > 0
+            ? Math.Round((double)Purchases / Views * 100, 2)
+            : 0;
     }
 }

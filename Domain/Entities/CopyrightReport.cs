@@ -15,6 +15,8 @@ public partial class CopyrightReport
     public string? Reason { get; set; }
     public ReportStatus Status { get; set; } = ReportStatus.pending;
     public DateTime? CreatedAt { get; set; }
+    public DateTime? ProcessedAt { get; set; }
+    public Guid? ProcessedBy { get; set; }
 
     public virtual Content? Content { get; set; }
 

@@ -44,6 +44,7 @@ namespace DrawingMarketplace.Application
             services.AddScoped<IDownloadService, DownloadService>();
             services.AddScoped<IReviewService, ReviewService>();
             services.AddScoped<ICopyrightReportService, CopyrightReportService>();
+            services.AddScoped<IContentStatsService, ContentStatsService>();
 
             services.AddAutoMapper(typeof(MappingProfile).Assembly);
 

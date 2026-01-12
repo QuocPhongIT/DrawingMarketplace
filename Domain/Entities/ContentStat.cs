@@ -3,15 +3,15 @@ using System.Collections.Generic;
 
 namespace DrawingMarketplace.Domain.Entities;
 
-public partial class ContentStat: BaseEntity
+public partial class ContentStat
 {
     public Guid ContentId { get; set; }
 
-    public int? Views { get; set; }
+    public int? Views { get; set; } = 0;
 
-    public int? Downloads { get; set; }
+    public int? Downloads { get; set; } = 0;
 
-    public int? Purchases { get; set; }
+    public int? Purchases { get; set; } = 0;
 
     public virtual Content Content { get; set; } = null!;
 }

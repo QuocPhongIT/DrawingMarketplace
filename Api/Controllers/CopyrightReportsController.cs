@@ -12,18 +12,16 @@ namespace DrawingMarketplace.Api.Controllers
     {
         private readonly ICopyrightReportService _service;
 
-        public CopyrightReportsController(
-            ICopyrightReportService service)
+        public CopyrightReportsController(ICopyrightReportService service)
         {
             _service = service;
         }
+
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> Create(
-            [FromBody] CreateCopyrightReportRequest request)
+        public async Task<IActionResult> Create([FromBody] CreateCopyrightReportRequest request)
         {
             await _service.CreateAsync(request);
-
             return this.Success<object>(
                 null,
                 "Gửi report bản quyền thành công",
@@ -31,12 +29,12 @@ namespace DrawingMarketplace.Api.Controllers
                 201
             );
         }
+
         [HttpGet("management")]
         [Authorize(Roles = "admin")]
         public async Task<IActionResult> GetAll()
         {
             var reports = await _service.GetAllAsync();
-
             return this.Success(
                 reports,
                 "Lấy danh sách report thành công",
@@ -61,6 +59,7 @@ namespace DrawingMarketplace.Api.Controllers
                 "Get copyright report detail successfully"
             );
         }
+
         [HttpPatch("{id:guid}/approve")]
         [Authorize(Roles = "admin")]
         public async Task<IActionResult> Approve(Guid id)
@@ -69,7 +68,7 @@ namespace DrawingMarketplace.Api.Controllers
             if (!success)
                 return this.NotFound(
                     "CopyrightReport",
-                    "Copyright report not found"
+                    "Copyright report not found or already processed"
                 );
 
             return this.Success<object>(
@@ -78,6 +77,7 @@ namespace DrawingMarketplace.Api.Controllers
                 "Approve report successfully"
             );
         }
+
         [HttpPatch("{id:guid}/reject")]
         [Authorize(Roles = "admin")]
         public async Task<IActionResult> Reject(Guid id)
@@ -86,7 +86,7 @@ namespace DrawingMarketplace.Api.Controllers
             if (!success)
                 return this.NotFound(
                     "CopyrightReport",
-                    "Copyright report not found"
+                    "Copyright report not found or already processed"
                 );
 
             return this.Success<object>(

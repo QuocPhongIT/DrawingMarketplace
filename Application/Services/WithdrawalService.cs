@@ -3,6 +3,7 @@ using DrawingMarketplace.Application.Interfaces;
 using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Enums;
 using DrawingMarketplace.Domain.Exceptions;
+using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,17 +13,27 @@ namespace DrawingMarketplace.Application.Services
     {
         private readonly DrawingMarketplaceContext _context;
         private readonly IWalletService _walletService;
-        private const decimal MIN_WITHDRAWAL_AMOUNT = 500000m; 
+        private readonly IEmailService _emailService;
+
+        private const decimal MIN_WITHDRAWAL_AMOUNT = 5000m;
         private const decimal TAX_THRESHOLD = 2000000m;
         private const decimal TAX_RATE = 0.10m;
         private const decimal TRANSFER_FEE = 11000m;
+        private const decimal FEE_THRESHOLD = 500000m;
 
         public WithdrawalService(
             DrawingMarketplaceContext context,
-            IWalletService walletService)
+            IWalletService walletService,
+            IEmailService emailService)
         {
             _context = context;
             _walletService = walletService;
+            _emailService = emailService;
+        }
+
+        private decimal CalculateTransferFee(decimal amount)
+        {
+            return amount >= FEE_THRESHOLD ? TRANSFER_FEE : 0m;
         }
 
         public async Task<WithdrawalDto> CreateWithdrawalAsync(CreateWithdrawalDto dto)
@@ -30,37 +41,39 @@ namespace DrawingMarketplace.Application.Services
             if (dto.Amount < MIN_WITHDRAWAL_AMOUNT)
                 throw new BadRequestException($"Số tiền rút tối thiểu là {MIN_WITHDRAWAL_AMOUNT:N0} VNĐ");
 
-            // Get collaborator from bank
             var bank = await _context.CollaboratorBanks
                 .Include(b => b.Collaborator)
+                .ThenInclude(c => c!.User)
                 .FirstOrDefaultAsync(b => b.Id == dto.BankId);
 
-            if (bank == null || bank.Collaborator == null)
+            if (bank == null || bank.CollaboratorId == null)
                 throw new NotFoundException("Bank account", dto.BankId);
 
-            var collaboratorId = bank.CollaboratorId ?? throw new BadRequestException("Bank account không hợp lệ");
+            var collaboratorId = bank.CollaboratorId.Value;
+            var collaboratorEmail = bank.Collaborator?.User?.Email
+                ?? throw new InvalidOperationException("Không tìm thấy email collaborator");
 
-            // Check wallet balance
-            var wallet = await _walletService.GetOrCreateWalletAsync(WalletOwnerType.collaborator, collaboratorId);
-            var availableBalance = wallet.Balance;
+            var wallet = await _context.Wallets
+                .FirstOrDefaultAsync(w =>
+                    w.OwnerType == WalletOwnerType.collaborator &&
+                    w.OwnerId == collaboratorId);
 
-            if (availableBalance < dto.Amount)
+            if (wallet == null)
+                throw new NotFoundException("Wallet", collaboratorId);
+
+            if (wallet.Balance.GetValueOrDefault() < dto.Amount)
                 throw new BadRequestException("Số dư ví không đủ");
 
-            // Calculate fees and tax
-            decimal taxAmount = 0;
-            if (dto.Amount >= TAX_THRESHOLD)
+            var tax = dto.Amount >= TAX_THRESHOLD ? dto.Amount * TAX_RATE : 0m;
+            var fee = CalculateTransferFee(dto.Amount);
+            var finalAmount = dto.Amount - tax - fee;
+
+            if (finalAmount < 0)
             {
-                taxAmount = dto.Amount * TAX_RATE;
+                throw new BadRequestException(
+                    $"Số tiền rút không đủ để trừ phí và thuế (phí dự kiến: {fee:N0} VNĐ, thuế: {tax:N0} VNĐ)");
             }
 
-            decimal feeAmount = TRANSFER_FEE;
-            decimal finalAmount = dto.Amount - taxAmount - feeAmount;
-
-            if (availableBalance < dto.Amount)
-                throw new BadRequestException("Số dư ví không đủ để chi trả phí và thuế");
-
-            // Create withdrawal
             var withdrawal = new Withdrawal
             {
                 Id = Guid.NewGuid(),
@@ -74,14 +87,16 @@ namespace DrawingMarketplace.Application.Services
             _context.Withdrawals.Add(withdrawal);
             await _context.SaveChangesAsync();
 
+            await _emailService.SendWithdrawalCreatedAsync(collaboratorEmail, dto.Amount);
+
             return await MapToDtoAsync(withdrawal.Id);
         }
 
         public async Task<WithdrawalDto> ApproveWithdrawalAsync(Guid withdrawalId, Guid adminId)
         {
             var withdrawal = await _context.Withdrawals
-                .Include(w => w.Bank)
                 .Include(w => w.Collaborator)
+                .ThenInclude(c => c!.User)
                 .FirstOrDefaultAsync(w => w.Id == withdrawalId);
 
             if (withdrawal == null)
@@ -90,48 +105,44 @@ namespace DrawingMarketplace.Application.Services
             if (withdrawal.Status != WithdrawalStatus.pending)
                 throw new BadRequestException("Yêu cầu rút tiền đã được xử lý");
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            var collaboratorEmail = withdrawal.Collaborator?.User?.Email
+                ?? throw new InvalidOperationException("Không tìm thấy email collaborator");
+
+            using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Calculate tax and fee
-                decimal taxAmount = 0;
-                if (withdrawal.Amount >= TAX_THRESHOLD)
-                {
-                    taxAmount = withdrawal.Amount * TAX_RATE;
-                }
-
-                decimal feeAmount = TRANSFER_FEE;
-                decimal totalDeduct = withdrawal.Amount; // Deduct full amount from wallet
-
-                // Deduct from wallet
                 await _walletService.DeductBalanceAsync(
                     WalletOwnerType.collaborator,
                     withdrawal.CollaboratorId!.Value,
-                    totalDeduct,
+                    withdrawal.Amount,
                     WalletTxType.withdrawal,
                     withdrawal.Id
                 );
 
-                // Update withdrawal status
                 withdrawal.Status = WithdrawalStatus.approved;
                 withdrawal.ProcessedAt = DateTime.UtcNow;
                 withdrawal.ProcessedBy = adminId;
 
                 await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
+                await tx.CommitAsync();
+
+                var estimatedFinal = withdrawal.Amount - CalculateTransferFee(withdrawal.Amount);
+                await _emailService.SendWithdrawalApprovedAsync(collaboratorEmail, withdrawal.Amount, estimatedFinal);
 
                 return await MapToDtoAsync(withdrawal.Id);
             }
             catch
             {
-                await transaction.RollbackAsync();
+                await tx.RollbackAsync();
                 throw;
             }
         }
 
-        public async Task<WithdrawalDto> RejectWithdrawalAsync(Guid withdrawalId, Guid adminId)
+        public async Task<WithdrawalDto> RejectWithdrawalAsync(Guid withdrawalId, Guid adminId, string? reason = null)
         {
             var withdrawal = await _context.Withdrawals
+                .Include(w => w.Collaborator)
+                .ThenInclude(c => c!.User)
                 .FirstOrDefaultAsync(w => w.Id == withdrawalId);
 
             if (withdrawal == null)
@@ -139,6 +150,9 @@ namespace DrawingMarketplace.Application.Services
 
             if (withdrawal.Status != WithdrawalStatus.pending)
                 throw new BadRequestException("Yêu cầu rút tiền đã được xử lý");
+
+            var collaboratorEmail = withdrawal.Collaborator?.User?.Email
+                ?? throw new InvalidOperationException("Không tìm thấy email collaborator");
 
             withdrawal.Status = WithdrawalStatus.rejected;
             withdrawal.ProcessedAt = DateTime.UtcNow;
@@ -146,41 +160,110 @@ namespace DrawingMarketplace.Application.Services
 
             await _context.SaveChangesAsync();
 
+            await _emailService.SendWithdrawalRejectedAsync(collaboratorEmail, withdrawal.Amount, reason);
+
+            return await MapToDtoAsync(withdrawal.Id);
+        }
+
+        public async Task<WithdrawalDto> MarkAsPaidAsync(Guid withdrawalId, Guid adminId)
+        {
+            var withdrawal = await _context.Withdrawals
+                .Include(w => w.Collaborator)
+                .ThenInclude(c => c!.User)
+                .FirstOrDefaultAsync(w => w.Id == withdrawalId);
+
+            if (withdrawal == null)
+                throw new NotFoundException("Withdrawal", withdrawalId);
+
+            if (withdrawal.Status != WithdrawalStatus.approved)
+                throw new BadRequestException("Chỉ có thể đánh dấu 'paid' khi yêu cầu đã được duyệt");
+
+            var collaboratorEmail = withdrawal.Collaborator?.User?.Email
+                ?? throw new InvalidOperationException("Không tìm thấy email collaborator");
+
+            withdrawal.Status = WithdrawalStatus.paid;
+            withdrawal.ProcessedAt = DateTime.UtcNow;
+            withdrawal.ProcessedBy = adminId;
+
+            await _context.SaveChangesAsync();
+
+            await _emailService.SendWithdrawalPaidAsync(collaboratorEmail, withdrawal.Amount);
+
             return await MapToDtoAsync(withdrawal.Id);
         }
 
         public async Task<List<WithdrawalDto>> GetCollaboratorWithdrawalsAsync(Guid collaboratorId)
         {
-            var withdrawalIds = await _context.Withdrawals
+            var ids = await _context.Withdrawals
                 .Where(w => w.CollaboratorId == collaboratorId)
                 .OrderByDescending(w => w.CreatedAt)
                 .Select(w => w.Id)
                 .ToListAsync();
 
-            var withdrawals = new List<WithdrawalDto>();
-            foreach (var id in withdrawalIds)
+            var result = new List<WithdrawalDto>();
+            foreach (var id in ids)
             {
-                var dto = await MapToDtoAsync(id);
-                withdrawals.Add(dto);
+                result.Add(await MapToDtoAsync(id));
             }
-            return withdrawals;
+
+            return result;
         }
 
         public async Task<List<WithdrawalDto>> GetPendingWithdrawalsAsync()
         {
-            var withdrawalIds = await _context.Withdrawals
+            var ids = await _context.Withdrawals
                 .Where(w => w.Status == WithdrawalStatus.pending)
                 .OrderByDescending(w => w.CreatedAt)
                 .Select(w => w.Id)
                 .ToListAsync();
 
-            var withdrawals = new List<WithdrawalDto>();
-            foreach (var id in withdrawalIds)
+            var result = new List<WithdrawalDto>();
+            foreach (var id in ids)
             {
-                var dto = await MapToDtoAsync(id);
-                withdrawals.Add(dto);
+                result.Add(await MapToDtoAsync(id));
             }
-            return withdrawals;
+
+            return result;
+        }
+
+        public async Task<List<WithdrawalDto>> GetAllWithdrawalsAsync(
+            WithdrawalStatus? status = null,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int page = 1,
+            int pageSize = 20)
+        {
+            var query = _context.Withdrawals.AsQueryable();
+
+            if (status.HasValue)
+            {
+                query = query.Where(w => w.Status == status.Value);
+            }
+
+            if (fromDate.HasValue)
+            {
+                query = query.Where(w => w.CreatedAt >= fromDate.Value);
+            }
+
+            if (toDate.HasValue)
+            {
+                query = query.Where(w => w.CreatedAt <= toDate.Value);
+            }
+
+            var ids = await query
+                .OrderByDescending(w => w.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(w => w.Id)
+                .ToListAsync();
+
+            var result = new List<WithdrawalDto>();
+            foreach (var id in ids)
+            {
+                result.Add(await MapToDtoAsync(id));
+            }
+
+            return result;
         }
 
         private async Task<WithdrawalDto> MapToDtoAsync(Guid withdrawalId)
@@ -192,14 +275,11 @@ namespace DrawingMarketplace.Application.Services
             if (withdrawal == null)
                 throw new NotFoundException("Withdrawal", withdrawalId);
 
-            decimal taxAmount = 0;
-            if (withdrawal.Amount >= TAX_THRESHOLD)
-            {
-                taxAmount = withdrawal.Amount * TAX_RATE;
-            }
+            var tax = withdrawal.Amount >= TAX_THRESHOLD
+                ? withdrawal.Amount * TAX_RATE
+                : 0m;
 
-            decimal feeAmount = TRANSFER_FEE;
-            decimal finalAmount = withdrawal.Amount - taxAmount - feeAmount;
+            var fee = CalculateTransferFee(withdrawal.Amount);
 
             return new WithdrawalDto
             {
@@ -210,9 +290,9 @@ namespace DrawingMarketplace.Application.Services
                 BankAccount = withdrawal.Bank?.BankAccount ?? "",
                 OwnerName = withdrawal.Bank?.OwnerName ?? "",
                 Amount = withdrawal.Amount,
-                TaxAmount = taxAmount,
-                FeeAmount = feeAmount,
-                FinalAmount = finalAmount,
+                TaxAmount = tax,
+                FeeAmount = fee,
+                FinalAmount = withdrawal.Amount - tax - fee,
                 Status = withdrawal.Status,
                 CreatedAt = withdrawal.CreatedAt,
                 ProcessedAt = withdrawal.ProcessedAt
@@ -220,4 +300,3 @@ namespace DrawingMarketplace.Application.Services
         }
     }
 }
-

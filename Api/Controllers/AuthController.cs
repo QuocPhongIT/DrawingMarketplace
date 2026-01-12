@@ -1,10 +1,12 @@
 ﻿using DrawingMarketplace.Api.Extensions;
+using DrawingMarketplace.Api.Responses;
 using DrawingMarketplace.Application.DTOs.Auth;
 using DrawingMarketplace.Application.Features.Auth;
-using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Domain.Interfaces;
+using DrawingMarketplace.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace DrawingMarketplace.Api.Controllers
@@ -22,6 +24,7 @@ namespace DrawingMarketplace.Api.Controllers
         private readonly ForgotPasswordHandler _forgot;
         private readonly ResetPasswordHandler _reset;
         private readonly ITokenService _tokens;
+        private readonly DrawingMarketplaceContext _context;
 
         public AuthController(
             RegisterHandler register,
@@ -32,7 +35,8 @@ namespace DrawingMarketplace.Api.Controllers
             ResendOtpHandler resendOtp,
             ForgotPasswordHandler forgot,
             ResetPasswordHandler reset,
-            ITokenService tokens)
+            ITokenService tokens,
+            DrawingMarketplaceContext context)
         {
             _register = register;
             _login = login;
@@ -43,6 +47,7 @@ namespace DrawingMarketplace.Api.Controllers
             _forgot = forgot;
             _reset = reset;
             _tokens = tokens;
+            _context = context;
         }
 
         [AllowAnonymous]
@@ -111,7 +116,7 @@ namespace DrawingMarketplace.Api.Controllers
         public async Task<IActionResult> ResendOtp(ResendOtpRequest req)
         {
             await _resendOtp.ExecuteAsync(req.Email);
-            return this.Success<object>(null, "Gửi lại OTP thành công", "Resend OTP successfully", 202);
+            return this.Success<object>(null, "Gửi lại OTP thành công", "Resend OTP successfully");
         }
 
         [AllowAnonymous]
@@ -119,7 +124,7 @@ namespace DrawingMarketplace.Api.Controllers
         public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest req)
         {
             await _forgot.ExecuteAsync(req.Email);
-            return this.Success<object>(null, "Đã gửi OTP đặt lại mật khẩu. Vui lòng kiểm tra email", "Password reset OTP sent. Please check your email", 202);
+            return this.Success<object>(null, "Đã gửi OTP đặt lại mật khẩu. Vui lòng kiểm tra email", "Password reset OTP sent. Please check your email");
         }
 
         [AllowAnonymous]
@@ -138,14 +143,44 @@ namespace DrawingMarketplace.Api.Controllers
         }
         [Authorize]
         [HttpGet("profile")]
-        public IActionResult Profile()
+        public async Task<IActionResult> GetProfile()
         {
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+            {
+                return Unauthorized("Token không hợp lệ");
+            }
+
+            var user = await _context.Users
+                .AsNoTracking()
+                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                .Include(u => u.Collaborator) 
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                return NotFound("Không tìm thấy thông tin người dùng");
+            }
+            string displayRole = user.Collaborator != null
+                ? "Cộng tác viên"
+                : user.UserRoles
+                    .Select(ur => ur.Role?.Name ?? "Unknown")
+                    .FirstOrDefault() ?? "Người dùng";
+
             var profile = new
             {
-                id = User.FindFirstValue(ClaimTypes.NameIdentifier),
-                email = User.FindFirstValue(ClaimTypes.Email),
-                role = User.FindFirstValue(ClaimTypes.Role)
+                id = user.Id,
+                username = user.Username,               
+                email = user.Email,                      
+                status = user.Status.ToString(),
+                createdAt = user.CreatedAt?.ToString("dd/MM/yyyy HH:mm"),
+                updatedAt = user.UpdatedAt?.ToString("dd/MM/yyyy HH:mm"), 
+                roleDisplay = displayRole,    
+
+                isCollaborator = user.Collaborator != null,
+                collaboratorStatus = user.Collaborator?.Status.ToString() 
             };
+
             return this.Success(profile, "Lấy thông tin profile thành công", "Get profile successfully");
         }
     }

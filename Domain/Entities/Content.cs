@@ -6,7 +6,7 @@ namespace DrawingMarketplace.Domain.Entities;
 
 public partial class Content: BaseEntity
 {
-    public Guid Id { get; set; }
+    //public Guid Id { get; set; }
 
     public Guid? CollaboratorId { get; set; }
 

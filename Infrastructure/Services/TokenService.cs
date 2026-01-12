@@ -46,8 +46,6 @@ public sealed class TokenService : ITokenService
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
-            new(JwtRegisteredClaimNames.Iss, issuer),
-            new(JwtRegisteredClaimNames.Aud, audience)
         };
 
         foreach (var role in roles)
