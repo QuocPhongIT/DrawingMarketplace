@@ -38,7 +38,8 @@ CodeCoverage/
 # Sensitive settings (REAL secrets only)
 appsettings.Secrets.json
 appsettings.Local.json
-
+appsettings*.json
+!appsettings.example.json
 # ENV
 .env
 
