@@ -6,7 +6,9 @@ namespace DrawingMarketplace.Api.Responses
     {
         private static string GetTimeStamp()
         {
-            return DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+            var vietnamTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+            var vietnamTime = TimeZoneInfo.ConvertTime(DateTime.UtcNow, vietnamTz);
+            return vietnamTime.ToString("yyyy-MM-dd HH:mm:ss");
         }
 
         public static ObjectResult CreateResponse<T>(
