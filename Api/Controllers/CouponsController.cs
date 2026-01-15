@@ -17,17 +17,15 @@ namespace DrawingMarketplace.Api.Controllers
         {
             _couponService = couponService;
         }
-
-        [HttpGet]
         [AllowAnonymous]
+        [HttpGet]
         public async Task<IActionResult> GetAll()
         {
             var coupons = await _couponService.GetAllAsync();
             return this.Success(coupons, "Lấy danh sách coupon thành công", "Get coupons successfully");
         }
-
-        [HttpGet("{code}")]
         [AllowAnonymous]
+        [HttpGet("{code}")]
         public async Task<IActionResult> GetByCode(string code)
         {
             var coupon = await _couponService.GetByCodeAsync(code);
@@ -37,16 +35,15 @@ namespace DrawingMarketplace.Api.Controllers
             return this.Success(coupon, "Lấy thông tin coupon thành công", "Get coupon successfully");
         }
 
-        [HttpPost]
         [Authorize(Roles = "admin")]
+        [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateCouponDto dto)
         {
             var coupon = await _couponService.CreateAsync(dto);
             return this.Success(coupon, "Tạo coupon thành công", "Create coupon successfully", 201);
         }
-
-        [HttpPut("{id:guid}")]
         [Authorize(Roles = "admin")]
+        [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCouponDto dto)
         {
             var coupon = await _couponService.UpdateAsync(id, dto);

@@ -10,12 +10,23 @@ using DotNetEnv;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using DrawingMarketplace.Infrastructure.Settings;
+using Serilog;
+using Serilog.Events;
 
 Env.Load();
 
 AppContext.SetSwitch("Npgsql.EnableLegacyNamingConvention", false);
 
 var builder = WebApplication.CreateBuilder(args);
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()                           
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)  
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+    .WriteTo.Console()                           
+    .CreateBootstrapLogger();
+
+builder.Host.UseSerilog();
 
 builder.Configuration.AddEnvironmentVariables();
 builder.Services.Configure<CloudinaryConfig>(builder.Configuration.GetSection("Cloudinary"));
@@ -38,7 +49,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ProductionCors", policy =>
     {
-        policy.WithOrigins("https://ban-ve-app.vercel.app")
+        policy.WithOrigins("http://localhost:3000","https://ban-ve-app.vercel.app")
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
@@ -101,6 +112,14 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 
 var app = builder.Build();
+
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("UserAgent", httpContext.Request.Headers["User-Agent"]);
+    };
+});
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {

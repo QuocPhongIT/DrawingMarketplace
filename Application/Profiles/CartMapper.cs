@@ -1,26 +1,25 @@
 ﻿using DrawingMarketplace.Application.DTOs.Cart;
+using System.Linq;
 
-namespace DrawingMarketplace.Application.Profiles
+namespace DrawingMarketplace.Application.Profiles;
+
+public static class CartMapper
 {
-
-    public static class CartMapper
+    public static CartResponseDto Map(Domain.Entities.Cart cart)
     {
-        public static CartResponseDto Map(Domain.Entities.Cart cart)
-        {
-            var items = cart.CartItems.Select(i => new CartItemDto(
-                i.ContentId,
-                i.Content.Title,
-                i.Content.Files.FirstOrDefault()?.FileUrl,
-                i.Price
-            )).ToList();
+        var items = cart.CartItems.Select(i => new CartItemDto(
+            ContentId: i.ContentId,
+            Title: i.Content?.Title ?? "Unknown",
+            ImageUrl: i.Content?.Files?.FirstOrDefault()?.FileUrl ?? string.Empty,
+            Price: i.Price,
+            Quantity: i.Quantity,
+            Subtotal: i.Price * i.Quantity
+        )).ToList();
 
-            return new CartResponseDto(
-                items,
-                cart.CalculateTotal(),
-                cart.ItemCount
-            );
-        }
+        return new CartResponseDto(
+            Items: items.AsReadOnly(),
+            TotalAmount: cart.CalculateTotal(),
+            ItemCount: cart.ItemCount
+        );
     }
-
-
 }

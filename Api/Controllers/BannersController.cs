@@ -11,6 +11,7 @@ namespace DrawingMarketplace.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize] 
     public class BannersController : ControllerBase
     {
         private readonly IBannerService _bannerService;
@@ -20,8 +21,8 @@ namespace DrawingMarketplace.Api.Controllers
             _bannerService = bannerService;
         }
 
-        [HttpGet]
         [AllowAnonymous]
+        [HttpGet]
         public async Task<IActionResult> GetActiveBanners()
         {
             var banners = await _bannerService.GetActiveBannersAsync();
@@ -61,7 +62,7 @@ namespace DrawingMarketplace.Api.Controllers
             await _bannerService.DeleteBannerAsync(id);
             return this.Success<object>(null, "Xóa banner thành công", "Delete banner successfully");
         }
-        
+
         [HttpGet("{id}")]
         [Authorize(Roles = "admin")]
         public async Task<IActionResult> GetBannerById(Guid id)
@@ -70,7 +71,7 @@ namespace DrawingMarketplace.Api.Controllers
             var banner = banners.FirstOrDefault(b => b.Id == id);
             if (banner == null)
                 return this.NotFound("Banner", "Banner not found");
-            
+
             return this.Success(banner, "Lấy chi tiết banner thành công", "Get banner detail successfully");
         }
     }

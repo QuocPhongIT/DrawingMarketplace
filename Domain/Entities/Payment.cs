@@ -17,8 +17,10 @@ public partial class Payment
     public string PaymentMethod { get; set; } = null!;
 
     public PaymentStatus Status { get; set; } = PaymentStatus.pending;
+    public DateTime? PaidAt { get; set; }
 
     public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     public virtual Order? Order { get; set; }
 

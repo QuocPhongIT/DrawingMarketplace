@@ -1,8 +1,16 @@
 using DrawingMarketplace.Api.Extensions;
 using DrawingMarketplace.Application.DTOs.Order;
 using DrawingMarketplace.Application.Interfaces;
+using DrawingMarketplace.Domain.Enums;
+using DrawingMarketplace.Domain.Interfaces;
+using DrawingMarketplace.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using System.Runtime;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace DrawingMarketplace.Api.Controllers
 {
@@ -12,10 +20,17 @@ namespace DrawingMarketplace.Api.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly IOrderService _orderService;
+        private readonly IPaymentGateway _paymentGateway;
+        private readonly VnPaySettings _settings;
 
-        public OrdersController(IOrderService orderService)
+        public OrdersController(
+            IOrderService orderService,
+            IPaymentGateway paymentGateway,
+            IOptions<VnPaySettings> settings)
         {
             _orderService = orderService;
+            _paymentGateway = paymentGateway;
+            _settings = settings.Value;
         }
 
         [HttpPost]
@@ -28,7 +43,7 @@ namespace DrawingMarketplace.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> GetMyOrders()
         {
-            var userId = Guid.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var orders = await _orderService.GetUserOrdersAsync(userId);
             return this.Success(orders, "Lấy danh sách đơn hàng thành công", "Get orders successfully");
         }
@@ -52,28 +67,77 @@ namespace DrawingMarketplace.Api.Controllers
 
             return this.Success<object>(null, "Hủy đơn hàng thành công", "Cancel order successfully");
         }
-        [HttpGet("vnpay/callback")]
         [AllowAnonymous]
-        public async Task<IActionResult> VnPayCallback()
+        [HttpGet("vnpay/callback")]
+        public IActionResult VnPayCallback()
         {
-            var queryParams = Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString());
+            var query = Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString());
 
-            if (!queryParams.TryGetValue("vnp_TxnRef", out var txnRef) || !Guid.TryParse(txnRef, out var orderId))
-                return BadRequest(new { message = "Thiếu mã đơn hàng" });
+            if (!_paymentGateway.VerifySignature(query))
+                return Content("<h2>Chữ ký không hợp lệ</h2>", "text/html; charset=utf-8");
 
-            queryParams.TryGetValue("vnp_ResponseCode", out var responseCode);
-            queryParams.TryGetValue("vnp_TransactionNo", out var transactionNo);
+            var success = query["vnp_ResponseCode"] == "00";
 
-            string status = responseCode == "00" ? "success" : "failed";
-
-            var order = await _orderService.GetByIdAsync(orderId);
-            if (order == null || order.Payment == null)
-                return NotFound(new { message = "Order không tồn tại" });
-
-            await _orderService.ProcessPaymentCallbackAsync(order.Payment.Id, status, transactionNo ?? string.Empty);
-
-            return Ok(new { message = "VNPay callback processed", status });
+            return Content($@"
+                <html>
+                <body style='font-family:Arial;text-align:center;margin-top:50px'>
+                    <h2>{(success ? "Thanh toán thành công" : "Thanh toán thất bại")}</h2>
+                    <p>Mã giao dịch: {query["vnp_TransactionNo"]}</p>
+                    <p>Đơn hàng đang được xử lý</p>
+                </body>
+                </html>", "text/html; charset=utf-8");
         }
+        [AllowAnonymous]
+        [HttpGet("vnpay/ipn")]
+        public async Task<IActionResult> VnPayIpn()
+        {
+            var query = Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString());
+
+            if (!_paymentGateway.VerifySignature(query))
+                return Ok(new { RspCode = "97", Message = "Invalid signature" });
+
+            if (!Guid.TryParse(query["vnp_TxnRef"], out var paymentId))
+                return Ok(new { RspCode = "01", Message = "Invalid payment" });
+
+            await _orderService.ProcessPaymentIpnAsync(
+                paymentId,
+                query["vnp_ResponseCode"],
+                query["vnp_TransactionNo"],
+                query
+            );
+
+            return Ok(new { RspCode = "00", Message = "Confirm Success" });
+        }
+
+        [HttpGet("vnpay/fake-ipn")]
+        [AllowAnonymous]
+        public IActionResult FakeVnPayIpn()
+        {
+            var vnpParams = new SortedDictionary<string, string>
+    {
+        { "vnp_Amount", "240000000" },
+        { "vnp_Command", "pay" },
+        { "vnp_CurrCode", "VND" },
+                { "vnp_Locale", "vn" },
+        { "vnp_ResponseCode", "00" },
+        { "vnp_TmnCode", "23JD7BY3" },
+        { "vnp_TxnRef", "22a98069-9413-47cf-97e9-63bc54ecdbd7" },
+        { "vnp_TransactionNo", "15397070" },
+        { "vnp_TransactionStatus", "00" }
+    };
+            var rawData = string.Join("&", vnpParams.Select(x => $"{x.Key}={x.Value}"));
+
+            using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(_settings.HashSecret));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+            var secureHash = string.Concat(hash.Select(b => b.ToString("x2")));
+
+            var query =
+                rawData +
+                "&vnp_SecureHashType=HmacSHA512" +
+                "&vnp_SecureHash=" + secureHash;
+
+            return Redirect("/api/orders/vnpay/ipn?" + query);
+        }
+
     }
 }
-

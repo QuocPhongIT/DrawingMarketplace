@@ -4,5 +4,7 @@
      Guid ContentId,
      string Title,
      string ImageUrl,
-     decimal Price);
+     decimal Price,
+    int Quantity,
+    decimal Subtotal);
 }

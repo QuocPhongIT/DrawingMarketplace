@@ -25,17 +25,15 @@ namespace DrawingMarketplace.Api.Controllers
             _withdrawalService = withdrawalService;
             _context = context;
         }
-
-        [HttpPost]
         [Authorize(Roles = "collaborator")]
+        [HttpPost]
         public async Task<IActionResult> CreateWithdrawal([FromBody] CreateWithdrawalDto dto)
         {
             var withdrawal = await _withdrawalService.CreateWithdrawalAsync(dto);
             return this.Success(withdrawal, "Tạo yêu cầu rút tiền thành công", "Create withdrawal successfully", 201);
         }
-
-        [HttpGet("my")]
         [Authorize(Roles = "collaborator")]
+        [HttpGet("my")]
         public async Task<IActionResult> GetMyWithdrawals()
         {
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -49,17 +47,15 @@ namespace DrawingMarketplace.Api.Controllers
             var withdrawals = await _withdrawalService.GetCollaboratorWithdrawalsAsync(collaborator.Id);
             return this.Success(withdrawals, "Lấy danh sách yêu cầu rút tiền thành công", "Get withdrawals successfully");
         }
-
-        [HttpGet("pending")]
         [Authorize(Roles = "admin")]
+        [HttpGet("pending")]
         public async Task<IActionResult> GetPendingWithdrawals()
         {
             var withdrawals = await _withdrawalService.GetPendingWithdrawalsAsync();
             return this.Success(withdrawals, "Lấy danh sách yêu cầu rút tiền chờ duyệt thành công", "Get pending withdrawals successfully");
         }
-
-        [HttpGet]
         [Authorize(Roles = "admin")]
+        [HttpGet]
         public async Task<IActionResult> GetAllWithdrawals(
             [FromQuery] WithdrawalStatus? status = null,
             [FromQuery] DateTime? fromDate = null,
@@ -70,27 +66,24 @@ namespace DrawingMarketplace.Api.Controllers
             var withdrawals = await _withdrawalService.GetAllWithdrawalsAsync(status, fromDate, toDate, page, pageSize);
             return this.Success(withdrawals, "Lấy danh sách tất cả yêu cầu rút tiền thành công", "Get all withdrawals successfully");
         }
-
-        [HttpPost("{id:guid}/approve")]
         [Authorize(Roles = "admin")]
+        [HttpPost("{id:guid}/approve")]
         public async Task<IActionResult> ApproveWithdrawal(Guid id)
         {
             var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var withdrawal = await _withdrawalService.ApproveWithdrawalAsync(id, adminId);
             return this.Success(withdrawal, "Duyệt yêu cầu rút tiền thành công", "Approve withdrawal successfully");
         }
-
-        [HttpPost("{id:guid}/reject")]
         [Authorize(Roles = "admin")]
+        [HttpPost("{id:guid}/reject")]
         public async Task<IActionResult> RejectWithdrawal(Guid id, [FromBody] string? reason = null)
         {
             var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var withdrawal = await _withdrawalService.RejectWithdrawalAsync(id, adminId, reason);
             return this.Success(withdrawal, "Từ chối yêu cầu rút tiền thành công", "Reject withdrawal successfully");
         }
-
-        [HttpPost("{id:guid}/paid")]
         [Authorize(Roles = "admin")]
+        [HttpPost("{id:guid}/paid")]
         public async Task<IActionResult> MarkAsPaid(Guid id)
         {
             var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

@@ -9,7 +9,6 @@ public partial class Cart
     public Guid Id { get; private set; }
     public Guid? UserId { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
-
     public virtual ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
     public virtual User? User { get; set; }
 
@@ -28,22 +27,33 @@ public partial class Cart
         };
     }
 
-    public void AddItem(CartItem item)
+    public void AddItemOrIncrement(Guid contentId, decimal price, int quantity = 1)
     {
-        if (item == null)
-            throw new BadRequestException("CartItem không được null");
+        var existing = CartItems.FirstOrDefault(i => i.ContentId == contentId);
+        if (existing != null)
+        {
+            existing.IncreaseQuantity(quantity);
+        }
+        else
+        {
+            var newItem = CartItem.Create(Id, contentId, price, quantity);
+            CartItems.Add(newItem);
+        }
+        UpdatedAt = DateTime.UtcNow;
+    }
 
-        if (CartItems.Any(i => i.ContentId == item.ContentId))
-            throw new BadRequestException("Sản phẩm đã tồn tại trong giỏ hàng");
+    public void UpdateItemQuantity(Guid contentId, int newQuantity)
+    {
+        var item = CartItems.FirstOrDefault(i => i.ContentId == contentId)
+            ?? throw new BadRequestException("Không tìm thấy sản phẩm trong giỏ hàng");
 
-        CartItems.Add(item);
+        item.UpdateQuantity(newQuantity);
         UpdatedAt = DateTime.UtcNow;
     }
 
     public void RemoveItem(Guid contentId)
     {
         var item = CartItems.FirstOrDefault(i => i.ContentId == contentId);
-
         if (item == null)
             throw new BadRequestException("Không tìm thấy sản phẩm trong giỏ hàng để xóa");
 
@@ -59,8 +69,8 @@ public partial class Cart
 
     public decimal CalculateTotal()
     {
-        return CartItems.Sum(i => i.Price);
+        return CartItems.Sum(i => i.GetSubtotal());  // Sửa đúng ở đây
     }
 
-    public int ItemCount => CartItems.Count;
+    public int ItemCount => CartItems.Count;  // Giữ nguyên: số loại sản phẩm
 }

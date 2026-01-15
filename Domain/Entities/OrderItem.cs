@@ -12,6 +12,7 @@ public partial class OrderItem
     public Guid? CollaboratorId { get; set; }
 
     public decimal Price { get; set; }
+    public int Quantity { get; set; } = 1;
 
     public virtual Collaborator? Collaborator { get; set; }
 

@@ -3,8 +3,8 @@ namespace DrawingMarketplace.Domain.Interfaces
     public interface IPaymentGateway
     {
         Task<PaymentResult> CreatePaymentAsync(CreatePaymentRequest request);
-        Task<PaymentStatusResult> CheckPaymentStatusAsync(string transactionId);
-        Task<RefundResult> RefundAsync(string transactionId, decimal amount, string reason);
+        PaymentStatusResult ParsePaymentResult(IDictionary<string, string> queryParams);
+        bool VerifySignature(IDictionary<string, string> queryParams);
     }
 
     public class CreatePaymentRequest
@@ -29,9 +29,11 @@ namespace DrawingMarketplace.Domain.Interfaces
     public class PaymentStatusResult
     {
         public bool Success { get; set; }
-        public string Status { get; set; } = string.Empty; // success, failed, pending
+        public string Status { get; set; } = string.Empty;
         public string? TransactionId { get; set; }
         public decimal? Amount { get; set; }
+        public string? BankCode { get; set; }
+        public string? ResponseCode { get; set; }
         public string? ErrorMessage { get; set; }
     }
 
@@ -42,4 +44,3 @@ namespace DrawingMarketplace.Domain.Interfaces
         public string? ErrorMessage { get; set; }
     }
 }
-

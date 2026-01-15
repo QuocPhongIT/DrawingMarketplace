@@ -1,4 +1,4 @@
-using DrawingMarketplace.Domain.Interfaces;
+﻿using DrawingMarketplace.Domain.Interfaces;
 using DrawingMarketplace.Infrastructure.Settings;
 using Microsoft.Extensions.Options;
 using System.Net;
@@ -18,21 +18,33 @@ namespace DrawingMarketplace.Infrastructure.Services.PaymentGateways
 
         public Task<PaymentResult> CreatePaymentAsync(CreatePaymentRequest request)
         {
-            var vnpParams = new SortedList<string, string>();
-            vnpParams.Add("vnp_Version", "2.1.0");
-            vnpParams.Add("vnp_Command", "pay");
-            vnpParams.Add("vnp_TmnCode", _settings.TmnCode);
-            vnpParams.Add("vnp_Amount", ((long)(request.Amount * 100)).ToString());
-            vnpParams.Add("vnp_CurrCode", "VND");
-            vnpParams.Add("vnp_TxnRef", request.OrderId);
-            vnpParams.Add("vnp_OrderInfo", request.Description);
-            vnpParams.Add("vnp_OrderType", "other");
-            vnpParams.Add("vnp_Locale", "vn");
-            vnpParams.Add("vnp_ReturnUrl", _settings.ReturnUrl + request.ReturnUrl);
-            vnpParams.Add("vnp_IpAddr", "127.0.0.1");
-            vnpParams.Add("vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss"));
+            var vnpParams = new SortedList<string, string>
+    {
+        { "vnp_Version", "2.1.0" },
+        { "vnp_Command", "pay" },
+        { "vnp_TmnCode", _settings.TmnCode },
+        { "vnp_Amount", ((long)(request.Amount * 100)).ToString() },
+        { "vnp_CurrCode", "VND" },
+        { "vnp_TxnRef", request.OrderId },
+        { "vnp_OrderInfo", request.Description },
+        { "vnp_OrderType", "other" },
+        { "vnp_Locale", "vn" },
+        { "vnp_ReturnUrl", _settings.ReturnUrl },
+        { "vnp_IpAddr", "127.0.0.1" },
+        { "vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss") }
+    };
 
-            var paymentUrl = CreateRequestUrl(vnpParams, _settings.PaymentUrl, _settings.HashSecret);
+            var hashData = string.Join("&",
+                vnpParams.Select(x =>
+                    $"{x.Key}={WebUtility.UrlEncode(x.Value)}")
+            );
+
+            var secureHash = HmacSHA512(_settings.HashSecret, hashData);
+            var paymentUrl =
+                $"{_settings.PaymentUrl}?" +
+                $"{hashData}" +
+                $"&vnp_SecureHashType=HmacSHA512" +
+                $"&vnp_SecureHash={secureHash}";
 
             return Task.FromResult(new PaymentResult
             {
@@ -42,49 +54,60 @@ namespace DrawingMarketplace.Infrastructure.Services.PaymentGateways
             });
         }
 
-        public Task<PaymentStatusResult> CheckPaymentStatusAsync(string transactionId)
-        {
-            return Task.FromResult(new PaymentStatusResult
-            {
-                Success = true,
-                Status = "pending",
-                TransactionId = transactionId
-            });
-        }
 
-        public Task<RefundResult> RefundAsync(string transactionId, decimal amount, string reason)
+        public PaymentStatusResult ParsePaymentResult(IDictionary<string, string> queryParams)
         {
-            return Task.FromResult(new RefundResult
+            if (!VerifySignature(queryParams))
             {
-                Success = true,
-                RefundTransactionId = Guid.NewGuid().ToString()
-            });
-        }
-
-        private string CreateRequestUrl(SortedList<string, string> requestData, string baseUrl, string vnpHashSecret)
-        {
-            var data = new StringBuilder();
-            foreach (var kv in requestData)
-            {
-                if (!string.IsNullOrEmpty(kv.Value))
+                return new PaymentStatusResult
                 {
-                    data.Append(kv.Key + "=" + WebUtility.UrlEncode(kv.Value) + "&");
-                }
+                    Success = false,
+                    Status = "invalid_signature",
+                    ErrorMessage = "Sai chữ ký"
+                };
             }
 
-            string queryString = data.ToString().TrimEnd('&');
+            queryParams.TryGetValue("vnp_ResponseCode", out var code);
+            queryParams.TryGetValue("vnp_TxnRef", out var txnRef);
+            queryParams.TryGetValue("vnp_Amount", out var amount);
 
-            string vnpSecureHash = HmacSHA512(vnpHashSecret, queryString);
+            var success = code == "00";
 
-            return baseUrl + "?" + queryString + "&vnp_SecureHash=" + vnpSecureHash;
+            return new PaymentStatusResult
+            {
+                Success = success,
+                Status = success ? "success" : "failed",
+                TransactionId = txnRef,
+                Amount = amount != null ? decimal.Parse(amount) / 100 : null,
+                ResponseCode = code
+            };
         }
-        private string HmacSHA512(string key, string inputData)
+
+        public bool VerifySignature(IDictionary<string, string> queryParams)
         {
-            byte[] keyBytes = Encoding.UTF8.GetBytes(key);
-            byte[] inputBytes = Encoding.UTF8.GetBytes(inputData);
-            using var hmac = new HMACSHA512(keyBytes);
-            var hashBytes = hmac.ComputeHash(inputBytes);
-            return string.Concat(hashBytes.Select(b => b.ToString("x2")));
+            if (!queryParams.TryGetValue("vnp_SecureHash", out var secureHash))
+                return false;
+
+            var hashData = string.Join("&",
+                queryParams
+                    .Where(x =>
+                        x.Key.StartsWith("vnp_") &&
+                        x.Key != "vnp_SecureHash" &&
+                        x.Key != "vnp_SecureHashType")
+                    .OrderBy(x => x.Key)
+                    .Select(x =>
+                        $"{x.Key}={WebUtility.UrlEncode(x.Value)}")
+            );
+
+            var checkHash = HmacSHA512(_settings.HashSecret, hashData);
+            return checkHash.Equals(secureHash, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string HmacSHA512(string key, string input)
+        {
+            using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(key));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(input));
+            return string.Concat(hash.Select(b => b.ToString("x2")));
         }
     }
 }

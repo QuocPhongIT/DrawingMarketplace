@@ -18,8 +18,8 @@ namespace DrawingMarketplace.Api.Controllers
         {
             _contentStatsService = contentStatsService;
         }
-        [HttpGet]
         [Authorize(Roles = "collaborator")]
+        [HttpGet]
         public async Task<IActionResult> GetMyStats(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
@@ -40,8 +40,8 @@ namespace DrawingMarketplace.Api.Controllers
                 data: result,
                 messageEn: "Get your content statistics successfully");
         }
-        [HttpGet("all")]
         [Authorize(Roles = "admin")]
+        [HttpGet("all")]
         public async Task<IActionResult> GetAllStats(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,

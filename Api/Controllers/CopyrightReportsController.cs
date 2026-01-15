@@ -16,9 +16,8 @@ namespace DrawingMarketplace.Api.Controllers
         {
             _service = service;
         }
-
-        [HttpPost]
         [Authorize]
+        [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateCopyrightReportRequest request)
         {
             await _service.CreateAsync(request);
@@ -29,9 +28,8 @@ namespace DrawingMarketplace.Api.Controllers
                 201
             );
         }
-
-        [HttpGet("management")]
         [Authorize(Roles = "admin")]
+        [HttpGet("management")]
         public async Task<IActionResult> GetAll()
         {
             var reports = await _service.GetAllAsync();
@@ -41,9 +39,8 @@ namespace DrawingMarketplace.Api.Controllers
                 "Get copyright report list successfully"
             );
         }
-
-        [HttpGet("management/{id:guid}")]
         [Authorize(Roles = "admin")]
+        [HttpGet("management/{id:guid}")]
         public async Task<IActionResult> GetById(Guid id)
         {
             var report = await _service.GetByIdAsync(id);
@@ -59,9 +56,8 @@ namespace DrawingMarketplace.Api.Controllers
                 "Get copyright report detail successfully"
             );
         }
-
-        [HttpPatch("{id:guid}/approve")]
         [Authorize(Roles = "admin")]
+        [HttpPatch("{id:guid}/approve")]
         public async Task<IActionResult> Approve(Guid id)
         {
             var success = await _service.ApproveAsync(id);
@@ -77,9 +73,8 @@ namespace DrawingMarketplace.Api.Controllers
                 "Approve report successfully"
             );
         }
-
-        [HttpPatch("{id:guid}/reject")]
         [Authorize(Roles = "admin")]
+        [HttpPatch("{id:guid}/reject")]
         public async Task<IActionResult> Reject(Guid id)
         {
             var success = await _service.RejectAsync(id);

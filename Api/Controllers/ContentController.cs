@@ -19,9 +19,8 @@ namespace DrawingMarketplace.Api.Controllers
         {
             _service = service;
         }
-
-        [HttpGet]
         [AllowAnonymous]
+        [HttpGet]
         public async Task<IActionResult> GetPublic(
              int page = 1,
              int pageSize = 10,
@@ -45,9 +44,8 @@ namespace DrawingMarketplace.Api.Controllers
 
             return this.Success(result, "Lấy danh sách content thành công", "Get content list successfully");
         }
-
-        [HttpGet("management")]
         [Authorize]
+        [HttpGet("management")]
         public async Task<IActionResult> GetManagement(
              int page = 1,
              int pageSize = 10,
@@ -71,9 +69,8 @@ namespace DrawingMarketplace.Api.Controllers
 
             return this.Success(result, "Lấy danh sách content quản trị thành công", "Get management content list successfully");
         }
-
-        [HttpGet("{id:guid}")]
         [AllowAnonymous]
+        [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id)
         {
             var content = await _service.GetPublicDetailAsync(id);
@@ -82,9 +79,8 @@ namespace DrawingMarketplace.Api.Controllers
             
             return this.Success(content, "Lấy chi tiết content thành công", "Get content detail successfully");
         }
-
-        [HttpGet("management/{id:guid}")]
         [Authorize]
+        [HttpGet("management/{id:guid}")]
         public async Task<IActionResult> GetManagementById(Guid id)
         {
             var content = await _service.GetManagementDetailAsync(id);
@@ -93,9 +89,8 @@ namespace DrawingMarketplace.Api.Controllers
             
             return this.Success(content, "Lấy chi tiết content quản trị thành công", "Get management content detail successfully");
         }
-
-        [HttpPost]
         [Authorize]
+        [HttpPost]
         public async Task<IActionResult> Create([FromForm] CreateContentDto dto)
         {
             var created = await _service.CreateAsync(dto);
@@ -106,9 +101,8 @@ namespace DrawingMarketplace.Api.Controllers
                 201
             );
         }
-
-        [HttpPut("{id:guid}")]
         [Authorize]
+        [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromForm] UpdateContentDto dto)
         {
             var updated = await _service.UpdateAsync(id, dto);
@@ -117,9 +111,8 @@ namespace DrawingMarketplace.Api.Controllers
             
             return this.Success(updated, "Cập nhật content thành công", "Update content successfully");
         }
-
-        [HttpDelete("{id:guid}")]
         [Authorize]
+        [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id)
         {
             var deleted = await _service.DeleteAsync(id);
@@ -132,9 +125,8 @@ namespace DrawingMarketplace.Api.Controllers
                 "Delete content successfully"
             );
         }
-
-        [HttpPatch("{id:guid}/status")]
         [Authorize(Roles = "admin")]
+        [HttpPatch("{id:guid}/status")]
         public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] bool publish)
         {
             var result = await _service.ApproveContentAsync(id, publish);

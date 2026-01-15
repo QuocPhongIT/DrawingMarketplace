@@ -73,19 +73,6 @@ public partial class DrawingMarketplaceContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        //modelBuilder
-        //    .HasPostgresEnum("collaborator_status", new[] { "pending", "approved", "rejected", "suspended" })
-        //    .HasPostgresEnum("content_status", new[] { "draft", "published", "archived" })
-        //    .HasPostgresEnum("coupon_type", new[] { "percent", "fixed" })
-        //    .HasPostgresEnum("order_status", new[] { "pending", "paid", "cancelled", "failed" })
-        //    .HasPostgresEnum("otp_type", new[] { "verify_account", "reset_password" })
-        //    .HasPostgresEnum("payment_status", new[] { "pending", "success", "failed" })
-        //    .HasPostgresEnum("report_status", new[] { "pending", "resolved", "rejected" })
-        //    .HasPostgresEnum("user_status", new[] { "active", "inactive", "banned" })
-        //    .HasPostgresEnum("wallet_owner_type", new[] { "user", "collaborator" })
-        //    .HasPostgresEnum("wallet_tx_type", new[] { "credit", "debit", "commission", "withdrawal" })
-        //    .HasPostgresEnum("withdrawal_status", new[] { "pending", "approved", "rejected", "paid" })
-        //.HasPostgresExtension("pgcrypto");
         modelBuilder.Entity<Banner>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("banners_pkey");
@@ -184,29 +171,43 @@ public partial class DrawingMarketplaceContext : DbContext
 
         modelBuilder.Entity<CartItem>(entity =>
         {
-            entity.HasKey(e => new { e.CartId, e.ContentId }).HasName("cart_items_pkey");
+            entity.HasKey(e => new { e.CartId, e.ContentId })
+          .HasName("cart_items_pkey");
 
             entity.ToTable("cart_items");
 
             entity.Property(e => e.CartId).HasColumnName("cart_id");
             entity.Property(e => e.ContentId).HasColumnName("content_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
+
+            entity.Property(e => e.Quantity)
+                  .HasColumnName("quantity")
+                  .HasDefaultValue(1)
+                  .IsRequired();
+
             entity.Property(e => e.Price)
-                .HasPrecision(18, 2)
-                .HasColumnName("price");
+                  .HasColumnName("price")
+                  .HasPrecision(18, 2)
+                  .IsRequired();
 
-            entity.HasOne(d => d.Cart).WithMany(p => p.CartItems)
-                .HasForeignKey(d => d.CartId)
-                .HasConstraintName("cart_items_cart_id_fkey");
+            entity.Property(e => e.CreatedAt)
+                  .HasColumnName("created_at")
+                  .HasDefaultValueSql("now() AT TIME ZONE 'UTC'")
+                  .ValueGeneratedOnAdd()
+                  .IsRequired();
 
-            entity.HasOne(d => d.Content).WithMany(p => p.CartItems)
-                .HasForeignKey(d => d.ContentId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("cart_items_content_id_fkey");
+            entity.Property(e => e.UpdatedAt)
+                  .HasColumnName("updated_at");
+
+            entity.HasOne(e => e.Cart)
+                  .WithMany(c => c.CartItems)
+                  .HasForeignKey(e => e.CartId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Content)
+                  .WithMany(c => c.CartItems)
+                  .HasForeignKey(e => e.ContentId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
-
         modelBuilder.Entity<Category>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("categories_pkey");
@@ -660,7 +661,10 @@ public partial class DrawingMarketplaceContext : DbContext
             entity.Property(e => e.Price)
                 .HasPrecision(18, 2)
                 .HasColumnName("price");
-
+            entity.Property(e => e.Quantity)
+                .HasColumnName("quantity")
+                .HasDefaultValue(1)
+                .IsRequired();
             entity.HasOne(d => d.Collaborator).WithMany(p => p.OrderItems)
                 .HasForeignKey(d => d.CollaboratorId)
                 .HasConstraintName("order_items_collaborator_id_fkey");
@@ -744,9 +748,13 @@ public partial class DrawingMarketplaceContext : DbContext
                .HasColumnName("status")
                .HasColumnType("payment_status")
                .HasDefaultValueSql("'pending'");
+            entity.Property(e => e.PaidAt)
+               .HasColumnName("paid_at");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasColumnName("updated_at");
             entity.Property(e => e.OrderId).HasColumnName("order_id");
             entity.Property(e => e.PaymentMethod).HasColumnName("payment_method");
             entity.Property(e => e.UserId).HasColumnName("user_id");
