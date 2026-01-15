@@ -39,5 +39,14 @@ namespace DrawingMarketplace.Application.Interfaces
         Task<ContentDetailDto?> ApproveContentAsync(Guid contentId, bool publish);
 
         Task<Content?> GetEntityByIdAsync(Guid contentId, CancellationToken ct = default);
+
+        Task<PagedResultDto<ContentListDto>> GetPagedMyPurchasesAsync(
+            Guid userId,
+            int page,
+            int pageSize,
+            string? keyword = null,
+            string? categoryName = null,
+            ContentSortBy sortBy = ContentSortBy.Newest,
+            SortDirection sortDir = SortDirection.Desc);
     }
 }

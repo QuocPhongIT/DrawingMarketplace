@@ -108,36 +108,5 @@ namespace DrawingMarketplace.Api.Controllers
 
             return Ok(new { RspCode = "00", Message = "Confirm Success" });
         }
-
-        [HttpGet("vnpay/fake-ipn")]
-        [AllowAnonymous]
-        public IActionResult FakeVnPayIpn()
-        {
-            var vnpParams = new SortedDictionary<string, string>
-    {
-        { "vnp_Amount", "240000000" },
-        { "vnp_Command", "pay" },
-        { "vnp_CurrCode", "VND" },
-                { "vnp_Locale", "vn" },
-        { "vnp_ResponseCode", "00" },
-        { "vnp_TmnCode", "23JD7BY3" },
-        { "vnp_TxnRef", "22a98069-9413-47cf-97e9-63bc54ecdbd7" },
-        { "vnp_TransactionNo", "15397070" },
-        { "vnp_TransactionStatus", "00" }
-    };
-            var rawData = string.Join("&", vnpParams.Select(x => $"{x.Key}={x.Value}"));
-
-            using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(_settings.HashSecret));
-            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-            var secureHash = string.Concat(hash.Select(b => b.ToString("x2")));
-
-            var query =
-                rawData +
-                "&vnp_SecureHashType=HmacSHA512" +
-                "&vnp_SecureHash=" + secureHash;
-
-            return Redirect("/api/orders/vnpay/ipn?" + query);
-        }
-
     }
 }

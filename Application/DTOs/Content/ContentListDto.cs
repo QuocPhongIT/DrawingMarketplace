@@ -35,5 +35,7 @@ namespace DrawingMarketplace.Application.DTOs.Content
         public decimal TotalRevenue { get; set; }
 
         public double ConversionRate { get; set; }
+
+        public int Quantity { get; set; } = 1;
     }
 }

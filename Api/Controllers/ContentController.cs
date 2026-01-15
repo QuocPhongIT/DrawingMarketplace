@@ -14,10 +14,12 @@ namespace DrawingMarketplace.Api.Controllers
     public class ContentsController : ControllerBase
     {
         private readonly IContentService _service;
+        private readonly ICurrentUserService _currentUserService;
 
-        public ContentsController(IContentService service)
+        public ContentsController(IContentService service, ICurrentUserService currentUserService)
         {
             _service = service;
+            _currentUserService = currentUserService;
         }
         [AllowAnonymous]
         [HttpGet]
@@ -68,6 +70,31 @@ namespace DrawingMarketplace.Api.Controllers
             );
 
             return this.Success(result, "Lấy danh sách content quản trị thành công", "Get management content list successfully");
+        }
+        [Authorize]
+        [HttpGet("my-purchases")]
+        public async Task<IActionResult> GetMyPurchases(
+             int page = 1,
+             int pageSize = 10,
+             string? keyword = null,
+             string? categoryName = null,
+             ContentSortBy sortBy = ContentSortBy.Newest,
+             SortDirection sortDir = SortDirection.Desc)
+        {
+            if (!_currentUserService.UserId.HasValue)
+                return this.Unauthorized();
+
+            var result = await _service.GetPagedMyPurchasesAsync(
+                _currentUserService.UserId.Value,
+                page,
+                pageSize,
+                keyword,
+                categoryName,
+                sortBy,
+                sortDir
+            );
+
+            return this.Success(result, "Lấy danh sách content đã mua thành công", "Get purchased content list successfully");
         }
         [AllowAnonymous]
         [HttpGet("{id:guid}")]

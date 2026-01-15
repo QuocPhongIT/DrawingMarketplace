@@ -49,7 +49,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ProductionCors", policy =>
     {
-        policy.WithOrigins("http://localhost:3000","https://ban-ve-app.vercel.app")
+        policy.WithOrigins("https://ban-ve-app.vercel.app")
               .AllowAnyMethod()
               .AllowAnyHeader();
     });

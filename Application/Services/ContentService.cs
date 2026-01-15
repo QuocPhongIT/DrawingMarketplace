@@ -540,6 +540,112 @@ namespace DrawingMarketplace.Application.Services
                 .FirstOrDefaultAsync(c => c.Id == contentId, ct);
         }
 
+        public async Task<PagedResultDto<ContentListDto>> GetPagedMyPurchasesAsync(
+            Guid userId,
+            int page,
+            int pageSize,
+            string? keyword = null,
+            string? categoryName = null,
+            ContentSortBy sortBy = ContentSortBy.Newest,
+            SortDirection sortDir = SortDirection.Desc)
+        {
+            // Step 1: Lấy danh sách content IDs mà user đã mua
+            var purchasedContentIds = await _context.OrderItems
+                .AsNoTracking()
+                .Where(oi => oi.Order.UserId == userId && oi.Order.Status == OrderStatus.paid)
+                .Select(oi => oi.ContentId)
+                .Distinct()
+                .ToListAsync();
+
+            if (purchasedContentIds.Count == 0)
+                return new PagedResultDto<ContentListDto> { Items = new List<ContentListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
+
+            // Step 2: Query trên Contents với IDs đó
+            IQueryable<Content> query = _context.Contents
+                .AsNoTracking()
+                .Where(c => purchasedContentIds.Contains(c.Id) && c.DeletedAt == null);
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+                query = query.Where(x => EF.Functions.ILike(x.Title, $"%{keyword}%"));
+
+            if (!string.IsNullOrWhiteSpace(categoryName))
+                query = query.Where(x => x.Category != null && EF.Functions.ILike(x.Category.Name, $"%{categoryName}%"));
+
+            // Step 3: Sắp xếp
+            query = sortBy switch
+            {
+                ContentSortBy.Price => sortDir == SortDirection.Asc
+                    ? query.OrderBy(x => x.Price)
+                    : query.OrderByDescending(x => x.Price),
+                ContentSortBy.Title => sortDir == SortDirection.Asc
+                    ? query.OrderBy(x => x.Title)
+                    : query.OrderByDescending(x => x.Title),
+                _ => query.OrderByDescending(x => x.CreatedAt)
+            };
+
+            var totalCount = await query.CountAsync();
+
+            // Step 4: Fetch content IDs sau skip/take
+            var pagedContentIds = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => x.Id)
+                .ToListAsync();
+
+            // Step 5: Lấy quantities cho các content này
+            var quantitiesDict = await _context.OrderItems
+                .AsNoTracking()
+                .Where(oi => oi.Order.UserId == userId && oi.Order.Status == OrderStatus.paid && pagedContentIds.Contains(oi.ContentId))
+                .GroupBy(oi => oi.ContentId)
+                .Select(g => new { ContentId = g.Key, TotalQuantity = g.Sum(oi => oi.Quantity) })
+                .ToDictionaryAsync(x => x.ContentId, x => x.TotalQuantity);
+
+            // Step 6: Fetch full content details
+            var items = await _context.Contents
+                .AsNoTracking()
+                .Where(c => pagedContentIds.Contains(c.Id))
+                .Include(c => c.Files)
+                .Include(c => c.Collaborator)
+                .ThenInclude(col => col.User)
+                .Include(c => c.ContentStat)
+                .Select(c => new ContentListDto
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    Description = c.Description,
+                    Price = c.Price,
+                    Status = c.Status,
+                    CategoryId = c.CategoryId,
+                    CreatedAt = c.CreatedAt.GetValueOrDefault(),
+                    CollaboratorId = c.CollaboratorId.HasValue ? c.CollaboratorId.Value : Guid.Empty,
+                    CollaboratorUsername = c.Collaborator != null && c.Collaborator.User != null ? c.Collaborator.User.Username : string.Empty,
+                    ThumbnailUrl = c.Files
+                        .Where(f => f.Purpose == FilePurpose.thumbnail)
+                        .Select(f => f.FileUrl)
+                        .FirstOrDefault(),
+                    PreviewUrls = c.Files
+                        .Where(f => f.Purpose == FilePurpose.preview)
+                        .OrderBy(f => f.DisplayOrder)
+                        .ThenBy(f => f.CreatedAt)
+                        .Select(f => f.FileUrl)
+                        .Take(4)
+                        .ToList(),
+                    Views = c.ContentStat != null ? c.ContentStat.Views ?? 0 : 0,
+                    Purchases = c.ContentStat != null ? c.ContentStat.Purchases ?? 0 : 0,
+                    Downloads = c.ContentStat != null ? c.ContentStat.Downloads ?? 0 : 0,
+                    Quantity = quantitiesDict.ContainsKey(c.Id) ? quantitiesDict[c.Id] : 1
+                })
+                .ToListAsync();
+
+            return new PagedResultDto<ContentListDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
+        }
+
         private async Task<(string PublicId, string Url)> UploadImageAsync(
              IFormFile file,
              string folder)
