@@ -22,7 +22,7 @@ namespace DrawingMarketplace.Api.Controllers
             var files = await _downloadService.GetDownloadFilesAsync(contentId);
             return Ok(files);
         }
-
+        [Authorize]
         [HttpGet("{contentId}/downloads/{fileId}")]
         public async Task<IActionResult> DownloadFile(Guid contentId, Guid fileId)
         {

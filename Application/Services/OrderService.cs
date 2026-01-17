@@ -198,7 +198,12 @@ namespace DrawingMarketplace.Application.Services
                 return;
             }
 
-            // Idempotent: IPN gọi nhiều lần vẫn OK
+            if (payment.Order == null)
+            {
+                _logger.LogWarning("IPN: Order not found for payment {PaymentId}", paymentId);
+                return;
+            }
+
             if (payment.Status == PaymentStatus.success)
                 return;
 
@@ -237,7 +242,6 @@ namespace DrawingMarketplace.Application.Services
                 payment.Order.Status = OrderStatus.paid;
 
                 await UpdateContentStatsAsync(payment.Order);
-                await GrantDownloadsAsync(payment.Order);
                 await ProcessCommissionsAsync(payment.Order);
             }
             else
@@ -337,20 +341,22 @@ namespace DrawingMarketplace.Application.Services
         {
             var userId = order.UserId!.Value;
 
-            var contentIds = order.OrderItems.Select(x => x.ContentId).Distinct().ToList();
+            // Chỉ grant downloads nếu chưa được grant cho order này
+            var hasGrantedDownloads = await _context.Downloads
+                .AnyAsync(x => x.UserId == userId && order.OrderItems.Select(oi => oi.ContentId).Contains(x.ContentId)
+                    && x.CreatedAt >= order.CreatedAt);
 
-            var existing = await _context.Downloads
-                .Where(x => x.UserId == userId && contentIds.Contains(x.ContentId))
-                .Select(x => x.ContentId)
-                .ToListAsync();
+            if (hasGrantedDownloads)
+                return;
 
-            foreach (var id in contentIds.Except(existing))
+            foreach (var item in order.OrderItems)
             {
                 _context.Downloads.Add(new Download
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
-                    ContentId = id,
+                    ContentId = item.ContentId,
+                    DownloadCount = 5 * item.Quantity,
                     CreatedAt = DateTime.UtcNow
                 });
             }
@@ -427,13 +433,13 @@ namespace DrawingMarketplace.Application.Services
             foreach (var id in order.OrderItems.Select(x => x.ContentId).Distinct())
             {
                 var updated = await _context.Database.ExecuteSqlRawAsync(
-                    "UPDATE content_stats SET purchases = purchases + 1, downloads = downloads + 1 WHERE content_id = {0}",
+                    "UPDATE content_stats SET purchases = purchases + 1 WHERE content_id = {0}",
                     id);
 
                 if (updated == 0)
                 {
                     await _context.Database.ExecuteSqlRawAsync(
-                        "INSERT INTO content_stats (content_id, views, downloads, purchases) VALUES ({0},0,1,1)",
+                        "INSERT INTO content_stats (content_id, views, downloads, purchases) VALUES ({0},0,0,1)",
                         id);
                 }
             }

@@ -74,10 +74,28 @@ namespace DrawingMarketplace.Application.Services
             if (file == null)
                 throw new NotFoundException("MediaFile", fileId);
 
-            // Download count logic (giữ nguyên)
+            // Get allowed downloads from all user's purchases for this content
+            var allowedDownloads = await _context.OrderItems
+                .AsNoTracking()
+                .Where(oi => oi.Order!.UserId == userId && oi.ContentId == contentId)
+                .SumAsync(oi => oi.Quantity * 5);
+
+            // Get current download count
             var download = await _context.Downloads
                 .FirstOrDefaultAsync(d => d.UserId == userId && d.ContentId == contentId);
 
+            if (allowedDownloads == 0)
+            {
+                throw new ForbiddenException("Bạn chưa mua nội dung này.");
+            }
+
+            var currentDownloads = download?.DownloadCount ?? 0;
+            if (currentDownloads >= allowedDownloads)
+            {
+                throw new ForbiddenException($"Bạn đã hết {allowedDownloads} lượt tải cho nội dung này.");
+            }
+
+            // Increment download count
             if (download == null)
             {
                 _context.Downloads.Add(new Download
@@ -91,9 +109,6 @@ namespace DrawingMarketplace.Application.Services
             }
             else
             {
-                if (download.DownloadCount >= 5)
-                    throw new ForbiddenException("Bạn đã hết 5 lượt tải cho nội dung này.");
-
                 download.DownloadCount++;
             }
 

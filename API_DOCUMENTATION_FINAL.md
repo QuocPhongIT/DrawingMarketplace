@@ -388,7 +388,77 @@ sortDir=Desc
   "status": "success"
 }
 ```
+GET /api/contents/my-purchases
 
+Lấy danh sách content tôi đã mua (Phân trang)
+
+Authentication: Required (Bearer Token)
+
+Mô tả:
+Trả về danh sách content mà user hiện tại đã mua thành công.
+Hỗ trợ phân trang, tìm kiếm, lọc theo category và sắp xếp.
+
+Headers:
+
+Authorization: Bearer <access_token>
+
+
+Query Parameters:
+
+page=1
+pageSize=10
+keyword=landscape
+categoryName=Art
+sortBy=Newest (Newest, Oldest, Cheapest, MostExpensive)
+sortDir=Desc (Desc, Asc)
+
+
+Giải thích tham số:
+
+page – Trang hiện tại (mặc định: 1)
+
+pageSize – Số item mỗi trang (mặc định: 10)
+
+keyword – Tìm theo tiêu đề content
+
+categoryName – Lọc theo tên category
+
+sortBy – Kiểu sắp xếp
+
+sortDir – Chiều sắp xếp
+
+Response: 200 OK
+
+{
+  "message": "Lấy danh sách content đã mua thành công",
+  "data": {
+    "items": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "title": "Beautiful Landscape",
+        "description": "A stunning landscape painting...",
+        "price": 99.99,
+        "categoryId": "550e8400-e29b-41d4-a716-446655440001",
+        "categoryName": "Art",
+        "thumbnailUrl": "https://...",
+        "purchasedAt": "2025-01-15T10:05:00Z",
+        "orderId": "550e8400-e29b-41d4-a716-446655440050"
+      }
+    ],
+    "totalCount": 8,
+    "pageNumber": 1,
+    "pageSize": 10,
+    "totalPages": 1
+  },
+  "status": "success"
+}
+
+
+Error Responses:
+
+401 Unauthorized – Chưa đăng nhập hoặc token không hợp lệ
+
+400 Bad Request – Tham số query không hợp lệ
 ---
 
 ### GET /api/contents/{id}
@@ -561,8 +631,6 @@ Phê duyệt hoặc từ chối content
 
 ### GET /api/cart
 Lấy giỏ hàng hiện tại
-
-**Authentication:** Required
 
 **Response:** `200 OK`
 ```json
@@ -771,7 +839,11 @@ Hủy đơn hàng
   "status": "success"
 }
 ```
-
+## Payment Flow (VNPay)
+1. POST /api/orders → nhận paymentUrl
+2. Redirect user đến paymentUrl
+3. ReturnUrl (/api/orders/vnpay/callback): Chỉ hiển thị kết quả (HTML), KHÔNG update DB
+4. IPN (/api/orders/vnpay/ipn): Server-to-server, verify vnp_SecureHash bằng HMAC-SHA512 + secretKey → mới update order paid + commission
 ---
 
 ### GET /api/orders/vnpay/callback
@@ -809,16 +881,6 @@ VNPay IPN Endpoint (Instant Payment Notification)
   "Message": "Confirm Success"
 }
 ```
-
----
-
-### GET /api/orders/vnpay/fake-ipn
-Fake IPN Endpoint (Dev/Test)
-
-**Response:** `200 OK`  
-(Cấu trúc tương tự /vnpay/ipn)
-
----
 
 ## Wallet API
 
@@ -1493,7 +1555,7 @@ Lấy danh sách file có thể download
 
 ### GET /api/{contentId}/downloads/{fileId}
 Download file
-
+**Authentication:** Required
 **Response:** `200 OK` (File Stream)
 
 ---

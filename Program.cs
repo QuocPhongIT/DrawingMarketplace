@@ -38,6 +38,8 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.Converters.Add(new VietnamDateTimeConverter());
+        options.JsonSerializerOptions.Converters.Add(new VietnamNullableDateTimeConverter());
     });
 
 builder.Services.AddEndpointsApiExplorer();

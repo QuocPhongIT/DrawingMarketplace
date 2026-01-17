@@ -66,6 +66,9 @@ namespace DrawingMarketplace.Application.Services
 
             var items = await query
                 .Include(c => c.Files)
+                .Include(c => c.ContentStat)
+                .Include(c => c.Collaborator)
+                .ThenInclude(col => col.User)
                 .Select(c => new ContentListDto
                 {
                     Id = c.Id,
@@ -75,6 +78,8 @@ namespace DrawingMarketplace.Application.Services
                     Status = c.Status,
                     CategoryId = c.CategoryId,
                     CreatedAt = c.CreatedAt.GetValueOrDefault(),
+                    CollaboratorId = c.CollaboratorId.HasValue ? c.CollaboratorId.Value : Guid.Empty,
+                    CollaboratorUsername = c.Collaborator != null && c.Collaborator.User != null ? c.Collaborator.User.Username : string.Empty,
                     ThumbnailUrl = c.Files
                         .Where(f => f.Purpose == FilePurpose.thumbnail)
                         .Select(f => f.FileUrl)
@@ -85,7 +90,10 @@ namespace DrawingMarketplace.Application.Services
                         .ThenBy(f => f.CreatedAt)
                         .Select(f => f.FileUrl)
                         .Take(4)
-                        .ToList()
+                        .ToList(),
+                    Views = c.ContentStat != null ? c.ContentStat.Views ?? 0 : 0,
+                    Purchases = c.ContentStat != null ? c.ContentStat.Purchases ?? 0 : 0,
+                    Downloads = c.ContentStat != null ? c.ContentStat.Downloads ?? 0 : 0
                 })
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -236,11 +244,7 @@ namespace DrawingMarketplace.Application.Services
                         : "",
                     Views = c.ContentStat != null ? c.ContentStat.Views ?? 0 : 0,
                     Purchases = c.ContentStat != null ? c.ContentStat.Purchases ?? 0 : 0,
-                    Downloads = c.ContentStat != null ? c.ContentStat.Downloads ?? 0 : 0,
-                    TotalRevenue = c.Price * (c.ContentStat != null ? c.ContentStat.Purchases ?? 0 : 0),
-                    ConversionRate = c.ContentStat != null && (c.ContentStat.Views ?? 0) > 0
-                        ? Math.Round((double)(c.ContentStat.Purchases ?? 0) / (c.ContentStat.Views ?? 1) * 100, 2)
-                        : 0
+                    Downloads = c.ContentStat != null ? c.ContentStat.Downloads ?? 0 : 0
                 })
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
