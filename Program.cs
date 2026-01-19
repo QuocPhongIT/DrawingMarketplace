@@ -75,12 +75,15 @@ builder.Services.AddRateLimiter(options =>
     });
 
     options.RejectionStatusCode = 429;
-    options.OnRejected = (context, token) =>
+    options.OnRejected = async (context, token) =>
     {
-        context.HttpContext.Response.StatusCode = 429;
-        context.HttpContext.Response.ContentType = "application/json";
-        context.HttpContext.Response.WriteAsync("{\"error\":\"Quá nhiều request. Vui lòng thử lại sau.\"}", cancellationToken: token);
-        return new ValueTask();
+        await DrawingMarketplace.Api.Responses.ResponseHelper.WriteErrorResponseAsync(
+            context.HttpContext,
+            429,
+            "Quá nhiều request. Vui lòng thử lại sau.",
+            "Too many requests. Please try again later.",
+            null,
+            "fail");
     };
 });
 

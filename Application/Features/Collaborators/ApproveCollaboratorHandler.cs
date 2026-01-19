@@ -62,7 +62,7 @@ namespace DrawingMarketplace.Application.Features.Collaborators
                     {
                         UserId = request.UserId.Value,
                         Status = CollaboratorActivityStatus.approved,
-                        CommissionRate = 0,
+                        CommissionRate = 10,
                         CreatedAt = DateTime.UtcNow
                     };
 

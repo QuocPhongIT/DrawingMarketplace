@@ -22,6 +22,7 @@ namespace DrawingMarketplace.Application.DTOs.Order
     public class OrderItemDto
     {
         public Guid ContentId { get; set; }
+        public Guid? CollaboratorId { get; set; }
         public string ContentTitle { get; set; } = string.Empty;
         public string? ImageUrl { get; set; }
         public int Quantity { get; set; } = 1;

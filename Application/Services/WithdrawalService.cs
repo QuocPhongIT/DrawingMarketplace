@@ -15,7 +15,7 @@ namespace DrawingMarketplace.Application.Services
         private readonly IWalletService _walletService;
         private readonly IEmailService _emailService;
 
-        private const decimal MIN_WITHDRAWAL_AMOUNT = 5000m;
+        private const decimal MIN_WITHDRAWAL_AMOUNT = 50000m;
         private const decimal TAX_THRESHOLD = 2000000m;
         private const decimal TAX_RATE = 0.10m;
         private const decimal TRANSFER_FEE = 11000m;
@@ -68,11 +68,8 @@ namespace DrawingMarketplace.Application.Services
             var fee = CalculateTransferFee(dto.Amount);
             var finalAmount = dto.Amount - tax - fee;
 
-            if (finalAmount < 0)
-            {
-                throw new BadRequestException(
-                    $"Số tiền rút không đủ để trừ phí và thuế (phí dự kiến: {fee:N0} VNĐ, thuế: {tax:N0} VNĐ)");
-            }
+            if (finalAmount < 50000)
+                throw new BadRequestException("Số tiền thực nhận phải từ 50000");
 
             var withdrawal = new Withdrawal
             {
@@ -152,7 +149,7 @@ namespace DrawingMarketplace.Application.Services
                 throw new BadRequestException("Yêu cầu rút tiền đã được xử lý");
 
             var collaboratorEmail = withdrawal.Collaborator?.User?.Email
-                ?? throw new InvalidOperationException("Không tìm thấy email collaborator");
+                ?? throw new BadRequestException("Không tìm thấy email collaborator");
 
             withdrawal.Status = WithdrawalStatus.rejected;
             withdrawal.ProcessedAt = DateTime.UtcNow;

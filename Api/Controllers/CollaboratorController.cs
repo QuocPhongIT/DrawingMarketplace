@@ -7,6 +7,7 @@ using DrawingMarketplace.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
 
 namespace DrawingMarketplace.Api.Controllers
@@ -35,14 +36,18 @@ namespace DrawingMarketplace.Api.Controllers
             _context = context;
         }
 
+        [SwaggerOperation(
+            Summary = "Đăng ký làm collaborator",
+            Description = "User gửi đơn đăng ký trở thành cộng tác viên"
+        )]
         [Authorize]
         [HttpPost]
         public async Task<IActionResult> Apply(
          [FromBody] ApplyCollaboratorRequestDto dto)
         {
-            var userId = Guid.Parse(
-                User.FindFirstValue(ClaimTypes.NameIdentifier)!
-            );
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
+                return this.Fail("Token không hợp lệ", "Invalid token", 401);
 
             await _apply.ExecuteAsync(userId, dto);
 
@@ -54,6 +59,10 @@ namespace DrawingMarketplace.Api.Controllers
             );
         }
 
+        [SwaggerOperation(
+            Summary = "Lấy danh sách collaborator",
+            Description = "Admin xem toàn bộ danh sách collaborator"
+        )]
         [Authorize(Roles = "admin")]
         [HttpGet]
         public async Task<IActionResult> GetAll()
@@ -66,6 +75,10 @@ namespace DrawingMarketplace.Api.Controllers
             );
         }
 
+        [SwaggerOperation(
+            Summary = "Cập nhật trạng thái collaborator",
+            Description = "Admin phê duyệt hoặc từ chối đơn đăng ký collaborator"
+        )]
         [Authorize(Roles = "admin")]
         [HttpPatch("{id:guid}/status")]
         public async Task<IActionResult> UpdateStatus(
@@ -102,14 +115,47 @@ namespace DrawingMarketplace.Api.Controllers
                 "Reject collaborator successfully"
             );
         }
-        [Authorize]
+
+        [SwaggerOperation(
+            Summary = "Lấy thông tin collaborator",
+            Description = "Admin hoặc collaborator xem thông tin cơ bản cộng tác viên"
+        )]
+        [Authorize(Roles = "admin,collaborator")]
         [HttpGet("collaborator/info")]
         public async Task<IActionResult> GetCollaboratorBasicInfo()
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var role = User.FindFirstValue(ClaimTypes.Role);
+
             if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
                 return Unauthorized("Token không hợp lệ");
+            if (role == "admin")
+            {
+                var collaborators = await _context.Collaborators
+                    .AsNoTracking()
+                    .Include(x => x.User)
+                    .Include(x => x.CollaboratorBanks)
+                    .Select(x => new
+                    {
+                        id = x.Id,
+                        username = x.User.Username,
+                        email = x.User.Email,
+                        commissionRate = x.CommissionRate,
+                        commissionRateDisplay = x.CommissionRate != null ? $"{x.CommissionRate}%" : "Chưa thiết lập",
+                        bank = x.CollaboratorBanks
+                            .Where(b => b.IsDefault == true)
+                            .Select(b => new
+                            {
+                                b.Id,
+                                b.BankName,
+                                b.BankAccount
+                            })
+                            .FirstOrDefault()
+                    })
+                    .ToListAsync();
 
+                return this.Success(collaborators, "Admin xem danh sách collaborator");
+            }
             var request = await _context.CollaboratorRequests
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.UserId == userId);
@@ -118,6 +164,7 @@ namespace DrawingMarketplace.Api.Controllers
                 return NotFound("Bạn chưa có đơn đăng ký cộng tác viên");
 
             Collaborator? collaborator = null;
+
             if (request.Status == CollaboratorRequestStatus.approved)
             {
                 collaborator = await _context.Collaborators
@@ -130,12 +177,6 @@ namespace DrawingMarketplace.Api.Controllers
                 .FirstOrDefault(x => x.IsDefault == true)
                 ?? collaborator?.CollaboratorBanks.FirstOrDefault();
 
-            var requestDateDisplay = request.CreatedAt.HasValue
-                ? (DateTime.UtcNow - request.CreatedAt.Value).Days > 0
-                    ? $"{(DateTime.UtcNow - request.CreatedAt.Value).Days} ngày trước"
-                    : "Hôm nay"
-                : "Chưa xác định";
-
             var status = request.Status switch
             {
                 CollaboratorRequestStatus.pending => new { code = "pending", text = "Chờ duyệt", color = "warning" },
@@ -147,65 +188,64 @@ namespace DrawingMarketplace.Api.Controllers
             var info = new
             {
                 title = "Thông tin Cộng tác viên",
-                subtitle = "Chi tiết đơn đăng ký của bạn",
                 status,
-                requestDateDisplay,
                 commissionRate = collaborator?.CommissionRate,
                 commissionRateDisplay = collaborator?.CommissionRate != null
                     ? $"{collaborator.CommissionRate}%"
                     : "Chưa thiết lập",
                 bankInfo = bank == null ? null : new
                 {
-                    bankName = bank.BankName,
-                    accountNumber = bank.BankAccount,
-                    formatted = $"{bank.BankName}\n{bank.BankAccount}"
+                    bank.Id,
+                    bank.BankName,
+                    bank.BankAccount
                 }
             };
 
-            return this.Success(info, "Lấy thông tin cộng tác viên thành công", "Get collaborator info successfully");
+            return this.Success(info, "Lấy thông tin cộng tác viên thành công");
         }
-        [Authorize]
+
+        [SwaggerOperation(
+            Summary = "Lấy danh sách nội dung collaborator",
+            Description = "Admin xem toàn bộ, collaborator chỉ xem nội dung của mình"
+        )]
+        [Authorize(Roles = "admin,collaborator")]
         [HttpGet("contents")]
         public async Task<IActionResult> GetMyCollaboratorContents()
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var role = User.FindFirstValue(ClaimTypes.Role);
+
             if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
                 return Unauthorized("Token không hợp lệ");
 
-            var collaborator = await _context.Collaborators
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.UserId == userId);
-
-            if (collaborator == null)
-                return Forbid();
-
-            var contents = await _context.Contents
+            IQueryable<Content> query = _context.Contents
                 .AsNoTracking()
                 .Include(x => x.Category)
-                .Include(x => x.Collaborator)
-                    .ThenInclude(c => c.User)
-                .Include(x => x.Files)
-                .Where(x => x.CollaboratorId == collaborator.Id)
+                .Include(x => x.Collaborator).ThenInclude(c => c.User)
+                .Include(x => x.Files);
+
+            if (role == "collaborator")
+            {
+                var collaborator = await _context.Collaborators
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.UserId == userId);
+
+                if (collaborator == null)
+                    return Forbid();
+
+                query = query.Where(x => x.CollaboratorId == collaborator.Id);
+            }
+            var contents = await query
                 .OrderByDescending(x => x.CreatedAt)
-                .Select(x => new
-                {
-                    x.Id,
-                    x.Title,
-                    x.Description,
-                    x.Price,
-                    x.Status,
-                    x.CreatedAt,
-                    Category = x.Category,
-                    Files = x.Files,
-                    Collaborator = x.Collaborator
-                })
                 .ToListAsync();
 
             var result = contents.Select(x => new
             {
-                id = x.Id,
-                title = x.Title,
-                description = x.Description,
+                x.Id,
+                x.Title,
+                x.Description,
+                price = x.Price,
+                priceDisplay = $"{x.Price:N0} đ",
 
                 category = x.Category == null ? null : new
                 {
@@ -220,73 +260,73 @@ namespace DrawingMarketplace.Api.Controllers
                     size = f.Size
                 }),
 
-                price = x.Price,
-                priceDisplay = $"{x.Price:N0} đ",
+                status = x.Status switch
+                {
+                    ContentStatus.draft => new { text = "Chờ duyệt", color = "warning" },
+                    ContentStatus.published => new { text = "Đã duyệt", color = "success" },
+                    ContentStatus.archived => new { text = "Từ chối", color = "danger" },
+                    _ => new { text = "Không xác định", color = "secondary" }
+                },
 
-                status = x.Status == ContentStatus.draft
-                    ? new { text = "Chờ duyệt", color = "warning" }
-                    : x.Status == ContentStatus.published
-                        ? new { text = "Đã duyệt", color = "success" }
-                        : x.Status == ContentStatus.archived
-                            ? new { text = "Từ chối", color = "danger" }
-                            : new { text = "Không xác định", color = "secondary" },
-
-                createdBy = x.Collaborator == null || x.Collaborator.User == null
-                    ? null
-                    : new
-                    {
-                        name = x.Collaborator.User.Username,
-                        email = x.Collaborator.User.Email
-                    },
+                createdBy = x.Collaborator?.User == null ? null : new
+                {
+                    name = x.Collaborator.User.Username,
+                    email = x.Collaborator.User.Email
+                },
 
                 createdAt = x.CreatedAt,
-                createdAtDisplay = x.CreatedAt.HasValue
-                    ? x.CreatedAt.Value.ToString("dd/MM/yyyy HH:mm")
-                    : null
+                createdAtDisplay = x.CreatedAt?.ToString("dd/MM/yyyy HH:mm")
             });
 
             return this.Success(result, "Lấy danh sách nội dung cộng tác viên thành công");
         }
-        [Authorize]
+
+        [SwaggerOperation(
+            Summary = "Thống kê doanh thu collaborator",
+            Description = "Xem thống kê doanh thu và hoa hồng của collaborator"
+        )]
+        [Authorize(Roles = "admin,collaborator")]
         [HttpGet("revenue-stats")]
         public async Task<IActionResult> GetCollaboratorRevenueStats()
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var role = User.FindFirstValue(ClaimTypes.Role);
+
             if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
                 return Unauthorized();
 
-            var collaborator = await _context.Collaborators
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.UserId == userId);
-
-            if (collaborator == null)
-                return Forbid();
-
-            var commissionPercent = collaborator.CommissionRate ?? 10m;
-            var commissionRate = commissionPercent / 100m;
-
-            var orderItems = await _context.OrderItems
+            IQueryable<OrderItem> query = _context.OrderItems
                 .AsNoTracking()
                 .Include(x => x.Order)
-                .Where(x =>
-                    x.CollaboratorId == collaborator.Id &&
-                    x.Order.Status == OrderStatus.paid)
-                .ToListAsync();
+                .Where(x => x.Order.Status == OrderStatus.paid);
+
+            decimal commissionPercent = 10m;
+
+            if (role == "collaborator")
+            {
+                var collaborator = await _context.Collaborators
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.UserId == userId);
+
+                if (collaborator == null)
+                    return Forbid();
+
+                commissionPercent = collaborator.CommissionRate ?? 10m;
+                query = query.Where(x => x.CollaboratorId == collaborator.Id);
+            }
+
+            var orderItems = await query.ToListAsync();
 
             var totalRevenue = orderItems.Sum(x => x.Price);
-            var totalOrders = orderItems.Count;
-            var commissionAmount = totalRevenue * commissionRate;
+            var commissionAmount = totalRevenue * (commissionPercent / 100m);
 
             var result = new
             {
                 totalRevenue,
                 totalRevenueDisplay = $"{totalRevenue:N0} đ",
-
                 commissionAmount,
                 commissionAmountDisplay = $"{commissionAmount:N0} đ",
-
-                totalOrders,
-
+                totalOrders = orderItems.Count,
                 commissionRate = commissionPercent,
                 commissionRateDisplay = $"{commissionPercent}%"
             };

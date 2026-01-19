@@ -1,7 +1,6 @@
-﻿using System.Text.Json;
-using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
 using DrawingMarketplace.Domain.Exceptions;
+using DrawingMarketplace.Api.Responses;
 
 namespace DrawingMarketplace.Api.Middlewares
 {
@@ -33,62 +32,131 @@ namespace DrawingMarketplace.Api.Middlewares
             }
             catch (DomainException ex)
             {
-                Console.WriteLine(
-                    $"🔥 DOMAIN EX: {ex.GetType().Name} | Status={ex.StatusCode}");
                 await HandleDomainException(context, ex);
             }
-
+            catch (FormatException ex)
+            {
+                await HandleFormatException(context, ex);
+            }
             catch (Exception ex)
             {
                 await HandleUnhandledException(context, ex);
             }
         }
 
-
         private static async Task HandleValidationException(
             HttpContext context,
             ValidationException ex)
         {
-            var errors = ex.Errors
+            var violations = ex.Errors
                 .GroupBy(e => e.PropertyName)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Select(e => e.ErrorMessage).ToArray()
-                );
+                .SelectMany(g => g.Select(e => new Violation
+                {
+                    Message = new ViolationMessage
+                    {
+                        Vi = e.ErrorMessage,
+                        En = e.ErrorMessage
+                    },
+                    Type = "ValidationError",
+                    Code = 400,
+                    Field = g.Key
+                }))
+                .ToList();
 
-            var problem = new ValidationProblemDetails(errors)
-            {
-                Type = GetRfcType(StatusCodes.Status400BadRequest),
-                Title = "Validation failed",
-                Status = StatusCodes.Status400BadRequest,
-                Instance = context.Request.Path
-            };
-
-            context.Response.StatusCode = problem.Status.Value;
-            context.Response.ContentType = "application/problem+json";
-
-            await context.Response.WriteAsync(
-                JsonSerializer.Serialize(problem));
+            await ResponseHelper.WriteErrorResponseAsync(
+                context,
+                400,
+                "Dữ liệu không hợp lệ",
+                "Validation failed",
+                violations,
+                "fail");
         }
 
         private static async Task HandleDomainException(
             HttpContext context,
             DomainException ex)
         {
-            var problem = new ProblemDetails
+            string messageVi;
+            string messageEn;
+
+            if (ex is NotFoundException notFoundEx)
             {
-                Type = GetRfcType(ex.StatusCode),
-                Title = "Business Error",
-                Status = ex.StatusCode,
-                Detail = ex.Message,
-                Instance = context.Request.Path
+                var resourceNameVi = GetResourceNameVietnamese(notFoundEx.ResourceName);
+                messageVi = $"{resourceNameVi} với mã '{notFoundEx.Key}' không tồn tại.";
+                messageEn = ex.Message;
+            }
+            else
+            {
+                messageVi = ex.Message;
+                messageEn = ex.Message;
+            }
+
+            var violation = new Violation
+            {
+                Message = new ViolationMessage
+                {
+                    Vi = messageVi,
+                    En = messageEn
+                },
+                Type = ex.GetType().Name.Replace("Exception", ""),
+                Code = ex.StatusCode
             };
 
-            context.Response.StatusCode = ex.StatusCode;
-            context.Response.ContentType = "application/problem+json";
+            await ResponseHelper.WriteErrorResponseAsync(
+                context,
+                ex.StatusCode,
+                messageVi,
+                messageEn,
+                new List<Violation> { violation },
+                "fail");
+        }
 
-            await context.Response.WriteAsync(
-                JsonSerializer.Serialize(problem));
+        private static string GetResourceNameVietnamese(string resourceName)
+        {
+            return resourceName.ToLower() switch
+            {
+                "content" => "Nội dung",
+                "cart" => "Giỏ hàng",
+                "order" => "Đơn hàng",
+                "user" => "Người dùng",
+                "category" => "Danh mục",
+                "coupon" => "Mã giảm giá",
+                "collaborator" => "Cộng tác viên",
+                "collaboratorrequest" => "Yêu cầu cộng tác viên",
+                "wallet" => "Ví",
+                "withdrawal" => "Yêu cầu rút tiền",
+                "otp" => "Mã OTP",
+                "review" => "Đánh giá",
+                "banner" => "Banner",
+                "copyrightreport" => "Báo cáo vi phạm",
+                "mediafile" => "File",
+                "bankaccount" => "Tài khoản ngân hàng",
+                _ => resourceName
+            };
+        }
+
+        private static async Task HandleFormatException(
+            HttpContext context,
+            FormatException ex)
+        {
+            var violation = new Violation
+            {
+                Message = new ViolationMessage
+                {
+                    Vi = "Định dạng dữ liệu không hợp lệ",
+                    En = "Invalid data format"
+                },
+                Type = "FormatError",
+                Code = 400
+            };
+
+            await ResponseHelper.WriteErrorResponseAsync(
+                context,
+                400,
+                "Định dạng dữ liệu không hợp lệ",
+                "Invalid data format",
+                new List<Violation> { violation },
+                "fail");
         }
 
         private async Task HandleUnhandledException(
@@ -102,35 +170,21 @@ namespace DrawingMarketplace.Api.Middlewares
                 context.Request.Path
             );
 
-            var rootMessage = ex.InnerException?.Message ?? ex.Message;
+            var message = _env.IsDevelopment()
+                ? (ex.InnerException?.Message ?? ex.Message)
+                : "Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.";
 
-            var problem = new ProblemDetails
-            {
-                Type = GetRfcType(StatusCodes.Status500InternalServerError),
-                Title = "Server Error",
-                Status = StatusCodes.Status500InternalServerError,
-                Detail = _env.IsDevelopment()
-                    ? rootMessage
-                    : "An unexpected error occurred.",
-                Instance = context.Request.Path
-            };
+            var messageEn = _env.IsDevelopment()
+                ? (ex.InnerException?.Message ?? ex.Message)
+                : "An unexpected error occurred. Please try again later.";
 
-            context.Response.StatusCode = problem.Status.Value;
-            context.Response.ContentType = "application/problem+json";
-
-            await context.Response.WriteAsync(
-                JsonSerializer.Serialize(problem));
+            await ResponseHelper.WriteErrorResponseAsync(
+                context,
+                500,
+                message,
+                messageEn,
+                null,
+                "error");
         }
-
-
-        private static string GetRfcType(int statusCode) => statusCode switch
-        {
-            400 => "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.1",
-            401 => "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.2",
-            403 => "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.3",
-            404 => "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.4",
-            409 => "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.8",
-            _ => "https://datatracker.ietf.org/doc/html/rfc7231#section-6.6.1"
-        };
     }
 }

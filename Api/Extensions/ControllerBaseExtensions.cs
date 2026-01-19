@@ -15,16 +15,6 @@ namespace DrawingMarketplace.Api.Extensions
             return ResponseHelper.SuccessResponse(controller, statusCode, message, data, messageEn);
         }
 
-        public static ObjectResult Error(
-            this ControllerBase controller,
-            string message,
-            string? messageEn = null,
-            int statusCode = 500,
-            List<Violation>? violations = null)
-        {
-            return ResponseHelper.ErrorResponse(controller, statusCode, message, messageEn, violations);
-        }
-
         public static ObjectResult Fail(
             this ControllerBase controller,
             string message,

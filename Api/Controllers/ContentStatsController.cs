@@ -1,9 +1,9 @@
 ﻿using DrawingMarketplace.Api.Extensions; 
-using DrawingMarketplace.Api.Responses;  
 using DrawingMarketplace.Application.Interfaces;
 using DrawingMarketplace.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
 
 namespace DrawingMarketplace.Api.Controllers
@@ -18,6 +18,11 @@ namespace DrawingMarketplace.Api.Controllers
         {
             _contentStatsService = contentStatsService;
         }
+
+        [SwaggerOperation(
+            Summary = "Thống kê content của collaborator",
+            Description = "Collaborator lấy thống kê các content của chính mình, hỗ trợ phân trang và tìm kiếm"
+        )]
         [Authorize(Roles = "collaborator")]
         [HttpGet]
         public async Task<IActionResult> GetMyStats(
@@ -26,20 +31,18 @@ namespace DrawingMarketplace.Api.Controllers
             [FromQuery] string? keyword = null)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim == null)
-                return ResponseHelper.ErrorResponse(this, 401, "Không được phép truy cập", "Unauthorized");
-
-            var userId = Guid.Parse(userIdClaim.Value);
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                return this.Fail("Không được phép truy cập", "Unauthorized", 401);
 
             var result = await _contentStatsService.GetMyStatsAsync(userId, page, pageSize, keyword);
 
-            return ResponseHelper.SuccessResponse(
-                controller: this,
-                statusCode: 200,
-                message: "Lấy thống kê nội dung của bạn thành công",
-                data: result,
-                messageEn: "Get your content statistics successfully");
+            return this.Success(result, "Lấy thống kê nội dung của bạn thành công", "Get your content statistics successfully");
         }
+
+        [SwaggerOperation(
+            Summary = "Thống kê tất cả content",
+            Description = "Admin xem thống kê toàn bộ content, có thể lọc theo collaborator và sắp xếp"
+        )]
         [Authorize(Roles = "admin")]
         [HttpGet("all")]
         public async Task<IActionResult> GetAllStats(
@@ -53,12 +56,7 @@ namespace DrawingMarketplace.Api.Controllers
             var result = await _contentStatsService.GetAllStatsAsync(
                 page, pageSize, keyword, collaboratorId, sortBy, sortDir);
 
-            return ResponseHelper.SuccessResponse(
-                controller: this,
-                statusCode: 200,
-                message: "Lấy thống kê tất cả nội dung thành công",
-                data: result,
-                messageEn: "Get all content statistics successfully");
+            return this.Success(result, "Lấy thống kê tất cả nội dung thành công", "Get all content statistics successfully");
         }
     }
 }

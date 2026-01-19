@@ -3,6 +3,7 @@ using DrawingMarketplace.Application.DTOs.Catogory;
 using DrawingMarketplace.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -21,6 +22,10 @@ namespace DrawingMarketplace.Api.Controllers
             _service = service;
         }
 
+        [SwaggerOperation(
+            Summary = "Lấy danh sách category",
+            Description = "API trả về toàn bộ danh sách category"
+        )]
         [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> GetAll()
@@ -29,6 +34,10 @@ namespace DrawingMarketplace.Api.Controllers
             return this.Success(categories, "Lấy danh sách category thành công", "Get categories successfully");
         }
 
+        [SwaggerOperation(
+            Summary = "Lấy chi tiết category",
+            Description = "Lấy thông tin category theo id"
+        )]
         [AllowAnonymous]
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id)
@@ -40,6 +49,10 @@ namespace DrawingMarketplace.Api.Controllers
             return this.Success(category, "Lấy chi tiết category thành công", "Get category detail successfully");
         }
 
+        [SwaggerOperation(
+            Summary = "Tạo category",
+            Description = "Chỉ admin được phép tạo category mới"
+        )]
         [Authorize(Roles = "admin")]
         [HttpPost]
         public async Task<IActionResult> Create(CreateCategoryDto dto)
@@ -48,6 +61,10 @@ namespace DrawingMarketplace.Api.Controllers
             return this.Success(created, "Tạo category thành công", "Create category successfully", 201);
         }
 
+        [SwaggerOperation(
+            Summary = "Cập nhật category",
+            Description = "Cập nhật thông tin category theo id (admin)"
+        )]
         [Authorize(Roles = "admin")]
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, UpdateCategoryDto dto)
@@ -59,6 +76,10 @@ namespace DrawingMarketplace.Api.Controllers
             return this.Success(updated, "Cập nhật category thành công", "Update category successfully");
         }
 
+        [SwaggerOperation(
+            Summary = "Xóa category",
+            Description = "Xóa category theo id (admin)"
+        )]
         [Authorize(Roles = "admin")]
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id)

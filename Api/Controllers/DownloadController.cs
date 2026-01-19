@@ -1,6 +1,7 @@
 ﻿using DrawingMarketplace.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace DrawingMarketplace.Api.Controllers
 {
@@ -15,6 +16,10 @@ namespace DrawingMarketplace.Api.Controllers
             _downloadService = downloadService;
         }
 
+        [SwaggerOperation(
+            Summary = "Lấy danh sách file có thể tải của content",
+            Description = "Trả về danh sách các file download theo contentId"
+        )]
         [Authorize]
         [HttpGet("contents/{contentId}/downloads")]
         public async Task<IActionResult> GetDownloadFiles(Guid contentId)
@@ -22,6 +27,11 @@ namespace DrawingMarketplace.Api.Controllers
             var files = await _downloadService.GetDownloadFilesAsync(contentId);
             return Ok(files);
         }
+
+        [SwaggerOperation(
+            Summary = "Tải file",
+            Description = "Tải file theo contentId và fileId"
+        )]
         [Authorize]
         [HttpGet("{contentId}/downloads/{fileId}")]
         public async Task<IActionResult> DownloadFile(Guid contentId, Guid fileId)

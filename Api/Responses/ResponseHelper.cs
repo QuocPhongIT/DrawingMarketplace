@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 
 namespace DrawingMarketplace.Api.Responses
 {
@@ -10,6 +12,35 @@ namespace DrawingMarketplace.Api.Responses
             var vietnamTime = TimeZoneInfo.ConvertTime(DateTime.UtcNow, vietnamTz);
             return vietnamTime.ToString("yyyy-MM-dd HH:mm:ss");
         }
+        public static async Task WriteErrorResponseAsync(
+            HttpContext context,
+            int statusCode,
+            string message,
+            string messageEn,
+            List<Violation>? violations = null,
+            string status = "fail")
+        {
+            var response = new ApiResponse<object>
+            {
+                Message = message,
+                MessageEn = messageEn,
+                Data = null,
+                Status = status,
+                TimeStamp = GetTimeStamp(),
+                Violations = violations
+            };
+
+            context.Response.StatusCode = statusCode;
+            context.Response.ContentType = "application/json";
+
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+
+            await context.Response.WriteAsync(
+                JsonSerializer.Serialize(response, jsonOptions));
+        }
 
         public static ObjectResult CreateResponse<T>(
             ControllerBase controller,
@@ -18,10 +49,7 @@ namespace DrawingMarketplace.Api.Responses
             string messageEn,
             T? data = default,
             string status = "success",
-            List<Violation>? violations = null,
-            bool? limitReached = null,
-            int? downloadCount = null,
-            int? remainingTime = null)
+            List<Violation>? violations = null)
         {
             var response = new ApiResponse<T>
             {
@@ -30,10 +58,7 @@ namespace DrawingMarketplace.Api.Responses
                 Data = data,
                 Status = status,
                 TimeStamp = GetTimeStamp(),
-                Violations = violations,
-                LimitReached = limitReached,
-                DownloadCount = downloadCount,
-                RemainingTime = remainingTime
+                Violations = violations
             };
 
             return controller.StatusCode(statusCode, response);
@@ -56,24 +81,6 @@ namespace DrawingMarketplace.Api.Responses
             );
         }
 
-        public static ObjectResult ErrorResponse(
-            ControllerBase controller,
-            int statusCode,
-            string message,
-            string? messageEn = null,
-            List<Violation>? violations = null)
-        {
-            return CreateResponse<object>(
-                controller,
-                statusCode,
-                message,
-                messageEn ?? message,
-                null,
-                "error",
-                violations
-            );
-        }
-
         public static ObjectResult FailResponse(
             ControllerBase controller,
             int statusCode,
@@ -91,8 +98,6 @@ namespace DrawingMarketplace.Api.Responses
                 violations
             );
         }
-
-        // Common error responses
         public static ObjectResult InvalidCredentialsError(ControllerBase controller)
         {
             var violation = new Violation

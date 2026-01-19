@@ -5,6 +5,7 @@ using DrawingMarketplace.Application.Interfaces;
 using DrawingMarketplace.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 using static DrawingMarketplace.Application.DTOs.Content.ContentUpsertDto;
 
 namespace DrawingMarketplace.Api.Controllers
@@ -21,6 +22,11 @@ namespace DrawingMarketplace.Api.Controllers
             _service = service;
             _currentUserService = currentUserService;
         }
+
+        [SwaggerOperation(
+            Summary = "Danh sách content công khai",
+            Description = "Lấy danh sách content đã được publish, hỗ trợ phân trang, tìm kiếm, lọc và sắp xếp"
+        )]
         [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> GetPublic(
@@ -46,7 +52,12 @@ namespace DrawingMarketplace.Api.Controllers
 
             return this.Success(result, "Lấy danh sách content thành công", "Get content list successfully");
         }
-        [Authorize]
+
+        [SwaggerOperation(
+            Summary = "Danh sách content quản trị",
+            Description = "Admin lấy danh sách toàn bộ content, có thể lọc theo trạng thái và collaborator"
+        )]
+        [Authorize(Roles = "admin")]
         [HttpGet("management")]
         public async Task<IActionResult> GetManagement(
              int page = 1,
@@ -71,6 +82,11 @@ namespace DrawingMarketplace.Api.Controllers
 
             return this.Success(result, "Lấy danh sách content quản trị thành công", "Get management content list successfully");
         }
+
+        [SwaggerOperation(
+            Summary = "Danh sách content đã mua",
+            Description = "Người dùng lấy danh sách content đã mua của chính mình"
+        )]
         [Authorize]
         [HttpGet("my-purchases")]
         public async Task<IActionResult> GetMyPurchases(
@@ -96,6 +112,11 @@ namespace DrawingMarketplace.Api.Controllers
 
             return this.Success(result, "Lấy danh sách content đã mua thành công", "Get purchased content list successfully");
         }
+
+        [SwaggerOperation(
+            Summary = "Chi tiết content công khai",
+            Description = "Lấy chi tiết content đã publish theo ID"
+        )]
         [AllowAnonymous]
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id)
@@ -106,7 +127,12 @@ namespace DrawingMarketplace.Api.Controllers
             
             return this.Success(content, "Lấy chi tiết content thành công", "Get content detail successfully");
         }
-        [Authorize]
+
+        [SwaggerOperation(
+            Summary = "Chi tiết content quản trị",
+            Description = "Admin xem chi tiết content bao gồm dữ liệu quản trị"
+        )]
+        [Authorize(Roles = "admin")]
         [HttpGet("management/{id:guid}")]
         public async Task<IActionResult> GetManagementById(Guid id)
         {
@@ -116,7 +142,12 @@ namespace DrawingMarketplace.Api.Controllers
             
             return this.Success(content, "Lấy chi tiết content quản trị thành công", "Get management content detail successfully");
         }
-        [Authorize]
+
+        [SwaggerOperation(
+           Summary = "Tạo content mới",
+           Description = "Collaborator hoặc Admin tạo content mới"
+       )]
+        [Authorize(Roles = "collaborator,admin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromForm] CreateContentDto dto)
         {
@@ -128,7 +159,12 @@ namespace DrawingMarketplace.Api.Controllers
                 201
             );
         }
-        [Authorize]
+
+        [SwaggerOperation(
+           Summary = "Cập nhật content",
+           Description = "Cập nhật thông tin content theo ID"
+       )]
+        [Authorize(Roles = "collaborator,admin")]
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromForm] UpdateContentDto dto)
         {
@@ -138,7 +174,12 @@ namespace DrawingMarketplace.Api.Controllers
             
             return this.Success(updated, "Cập nhật content thành công", "Update content successfully");
         }
-        [Authorize]
+
+        [SwaggerOperation(
+            Summary = "Xóa content",
+            Description = "Admin xóa content theo ID"
+        )]
+        [Authorize(Roles = "admin")]
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id)
         {
@@ -152,6 +193,11 @@ namespace DrawingMarketplace.Api.Controllers
                 "Delete content successfully"
             );
         }
+
+        [SwaggerOperation(
+            Summary = "Duyệt hoặc lưu trữ content",
+            Description = "Admin duyệt (publish=true) hoặc lưu trữ (publish=false) content"
+        )]
         [Authorize(Roles = "admin")]
         [HttpPatch("{id:guid}/status")]
         public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] bool publish)

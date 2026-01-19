@@ -45,8 +45,12 @@ namespace DrawingMarketplace.Application.Services
                 MinOrderAmount = dto.MinOrderAmount ?? 0,
                 UsageLimit = dto.UsageLimit,
                 UsedCount = 0,
-                ValidFrom = dto.ValidFrom,
-                ValidTo = dto.ValidTo,
+                ValidFrom = dto.ValidFrom.HasValue
+    ? DateTime.SpecifyKind(dto.ValidFrom.Value, DateTimeKind.Utc)
+    : null,
+                ValidTo = dto.ValidTo.HasValue
+    ? DateTime.SpecifyKind(dto.ValidTo.Value, DateTimeKind.Utc)
+    : null,
                 IsActive = dto.IsActive,
                 CreatedAt = DateTime.UtcNow
             };
@@ -67,8 +71,10 @@ namespace DrawingMarketplace.Application.Services
             if (dto.MaxDiscount.HasValue) coupon.MaxDiscount = dto.MaxDiscount;
             if (dto.MinOrderAmount.HasValue) coupon.MinOrderAmount = dto.MinOrderAmount.Value;
             if (dto.UsageLimit.HasValue) coupon.UsageLimit = dto.UsageLimit;
-            if (dto.ValidFrom.HasValue) coupon.ValidFrom = dto.ValidFrom;
-            if (dto.ValidTo.HasValue) coupon.ValidTo = dto.ValidTo;
+            if (dto.ValidFrom.HasValue)
+                coupon.ValidFrom = DateTime.SpecifyKind(dto.ValidFrom.Value, DateTimeKind.Utc);
+            if (dto.ValidTo.HasValue)
+                coupon.ValidTo = DateTime.SpecifyKind(dto.ValidTo.Value, DateTimeKind.Utc);
             if (dto.IsActive.HasValue) coupon.IsActive = dto.IsActive.Value;
 
             await _context.SaveChangesAsync();

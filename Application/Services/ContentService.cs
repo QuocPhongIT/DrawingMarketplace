@@ -522,10 +522,14 @@ namespace DrawingMarketplace.Application.Services
         {
             var content = await _context.Contents.FindAsync(id);
             if (content == null) return false;
-            _context.Contents.Remove(content);
+
+            content.DeletedAt = DateTime.UtcNow;
+            content.Status = ContentStatus.archived;
+
             await _context.SaveChangesAsync();
             return true;
         }
+
 
         public async Task<ContentDetailDto?> ApproveContentAsync(Guid contentId, bool publish)
         {
@@ -553,7 +557,6 @@ namespace DrawingMarketplace.Application.Services
             ContentSortBy sortBy = ContentSortBy.Newest,
             SortDirection sortDir = SortDirection.Desc)
         {
-            // Step 1: Lấy danh sách content IDs mà user đã mua
             var purchasedContentIds = await _context.OrderItems
                 .AsNoTracking()
                 .Where(oi => oi.Order.UserId == userId && oi.Order.Status == OrderStatus.paid)
@@ -563,8 +566,6 @@ namespace DrawingMarketplace.Application.Services
 
             if (purchasedContentIds.Count == 0)
                 return new PagedResultDto<ContentListDto> { Items = new List<ContentListDto>(), TotalCount = 0, Page = page, PageSize = pageSize };
-
-            // Step 2: Query trên Contents với IDs đó
             IQueryable<Content> query = _context.Contents
                 .AsNoTracking()
                 .Where(c => purchasedContentIds.Contains(c.Id) && c.DeletedAt == null);
@@ -574,8 +575,6 @@ namespace DrawingMarketplace.Application.Services
 
             if (!string.IsNullOrWhiteSpace(categoryName))
                 query = query.Where(x => x.Category != null && EF.Functions.ILike(x.Category.Name, $"%{categoryName}%"));
-
-            // Step 3: Sắp xếp
             query = sortBy switch
             {
                 ContentSortBy.Price => sortDir == SortDirection.Asc
@@ -588,23 +587,17 @@ namespace DrawingMarketplace.Application.Services
             };
 
             var totalCount = await query.CountAsync();
-
-            // Step 4: Fetch content IDs sau skip/take
             var pagedContentIds = await query
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(x => x.Id)
                 .ToListAsync();
-
-            // Step 5: Lấy quantities cho các content này
             var quantitiesDict = await _context.OrderItems
                 .AsNoTracking()
                 .Where(oi => oi.Order.UserId == userId && oi.Order.Status == OrderStatus.paid && pagedContentIds.Contains(oi.ContentId))
                 .GroupBy(oi => oi.ContentId)
                 .Select(g => new { ContentId = g.Key, TotalQuantity = g.Sum(oi => oi.Quantity) })
                 .ToDictionaryAsync(x => x.ContentId, x => x.TotalQuantity);
-
-            // Step 6: Fetch full content details
             var items = await _context.Contents
                 .AsNoTracking()
                 .Where(c => pagedContentIds.Contains(c.Id))

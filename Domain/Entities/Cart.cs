@@ -69,8 +69,8 @@ public partial class Cart
 
     public decimal CalculateTotal()
     {
-        return CartItems.Sum(i => i.GetSubtotal());  // Sửa đúng ở đây
+        return CartItems.Sum(i => i.GetSubtotal());  
     }
 
-    public int ItemCount => CartItems.Count;  // Giữ nguyên: số loại sản phẩm
+    public int ItemCount => CartItems.Count; 
 }

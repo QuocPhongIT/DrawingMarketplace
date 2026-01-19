@@ -32,7 +32,7 @@ namespace DrawingMarketplace.Application.Services
             _logger = logger;
         }
 
-        public async Task<OrderDto> CreateOrderAsync(CreateOrderDto dto)
+        public async Task<OrderDto> CreateOrderAsync(CreateOrderDto dto)    
         {
             var userId = _currentUserService.UserId ?? throw new UnauthorizedException();
 
@@ -56,7 +56,7 @@ namespace DrawingMarketplace.Application.Services
                     ?? throw new NotFoundException("Cart", userId);
 
                 if (!cart.CartItems.Any())
-                    throw new Exception("Giỏ hàng trống");
+                    throw new BadRequestException("Giỏ hàng trống");
 
                 var ids = cart.CartItems.Select(x => x.ContentId).Distinct().ToList();
 
@@ -82,23 +82,37 @@ namespace DrawingMarketplace.Application.Services
 
             if (!string.IsNullOrWhiteSpace(dto.CouponCode))
             {
-                coupon = await _context.Coupons
-                     .FirstOrDefaultAsync(x =>
-                         x.Code == dto.CouponCode &&
-                         x.IsActive == true
-                     );
+                coupon = await _context.Coupons.FirstOrDefaultAsync(x =>
+                    x.Code == dto.CouponCode &&
+                    x.IsActive == true &&
+                    (x.ValidFrom == null || x.ValidFrom <= DateTime.UtcNow) &&
+                    (x.ValidTo == null || x.ValidTo >= DateTime.UtcNow)
+                );
 
+                if (coupon == null)
+                    throw new BadRequestException("Coupon không hợp lệ");
 
-                if (coupon != null)
+                if (coupon.MinOrderAmount.HasValue && subtotal < coupon.MinOrderAmount.Value)
+                    throw new BadRequestException(
+                        $"Đơn hàng tối thiểu {coupon.MinOrderAmount.Value:N0} mới được dùng coupon"
+                    );
+
+                if (coupon.UsageLimit.HasValue)
                 {
-                    discount = coupon.Type == CouponType.percent
-                        ? subtotal * coupon.Value / 100
-                        : coupon.Value;
+                    coupon.UsedCount ??= 0;
 
-                    if (coupon.MaxDiscount.HasValue)
-                        discount = Math.Min(discount, coupon.MaxDiscount.Value);
+                    if (coupon.UsedCount >= coupon.UsageLimit)
+                        throw new BadRequestException("Coupon đã hết lượt sử dụng");
                 }
+
+                discount = coupon.Type == CouponType.percent
+                    ? subtotal * coupon.Value / 100
+                    : coupon.Value;
+
+                if (coupon.MaxDiscount.HasValue)
+                    discount = Math.Min(discount, coupon.MaxDiscount.Value);
             }
+
 
             var total = Math.Max(0, subtotal - discount);
 
@@ -161,8 +175,7 @@ namespace DrawingMarketplace.Application.Services
                 });
 
                 if (!result.Success || string.IsNullOrEmpty(result.PaymentUrl))
-                    throw new Exception("Không thể tạo link thanh toán");
-
+                    throw new BadRequestException("Không thể tạo link thanh toán");
                 _context.PaymentTransactions.Add(new PaymentTransaction
                 {
                     Id = Guid.NewGuid(),
@@ -178,81 +191,91 @@ namespace DrawingMarketplace.Application.Services
             await tx.CommitAsync();
 
             return await MapToOrderDtoAsync(order.Id)
-                ?? throw new Exception("Map OrderDto failed");
+                ?? throw new NotFoundException("Order", order.Id);
         }
 
         public async Task ProcessPaymentIpnAsync(
-      Guid paymentId,
-      string responseCode,
-      string transactionNo,
-      Dictionary<string, string> rawData)
+    Guid paymentId,
+    string responseCode,
+    string transactionNo,
+    Dictionary<string, string> rawData)
         {
-            var payment = await _context.Payments
-                .Include(x => x.Order)
-                .ThenInclude(o => o.OrderItems)
-                .FirstOrDefaultAsync(x => x.Id == paymentId);
+            await using var tx = await _context.Database.BeginTransactionAsync();
 
-            if (payment == null)
+            try
             {
-                _logger.LogWarning("IPN: Payment not found {PaymentId}", paymentId);
-                return;
-            }
+                var payment = await _context.Payments
+                    .Include(x => x.Order)
+                        .ThenInclude(o => o.OrderItems)
+                    .FirstOrDefaultAsync(x => x.Id == paymentId);
 
-            if (payment.Order == null)
-            {
-                _logger.LogWarning("IPN: Order not found for payment {PaymentId}", paymentId);
-                return;
-            }
+                if (payment == null || payment.Order == null)
+                    return;
 
-            if (payment.Status == PaymentStatus.success)
-                return;
+                var existedTransaction = await _context.PaymentTransactions
+                    .AnyAsync(x => x.Provider == "vnpay" && x.TransactionId == transactionNo);
 
-            var existedTransaction = await _context.PaymentTransactions
-                .AnyAsync(x => x.Provider == "vnpay"
-                            && x.TransactionId == transactionNo);
-
-            if (!existedTransaction)
-            {
-                _context.PaymentTransactions.Add(new PaymentTransaction
+                if (!existedTransaction)
                 {
-                    Id = Guid.NewGuid(),
-                    PaymentId = payment.Id,
-                    Provider = "vnpay",
-                    TransactionId = transactionNo,
-                    RawResponse = JsonSerializer.Serialize(rawData),
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
+                    _context.PaymentTransactions.Add(new PaymentTransaction
+                    {
+                        Id = Guid.NewGuid(),
+                        PaymentId = payment.Id,
+                        Provider = "vnpay",
+                        TransactionId = transactionNo,
+                        RawResponse = JsonSerializer.Serialize(rawData),
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
 
-            var vnpAmount = long.Parse(rawData["vnp_Amount"]) / 100;
+                var vnpAmount = long.Parse(rawData["vnp_Amount"]) / 100;
 
-            if (payment.Amount != vnpAmount)
-            {
-                payment.Status = PaymentStatus.failed;
-                payment.Order.Status = OrderStatus.failed;
+                if (payment.Amount != vnpAmount)
+                {
+                    payment.Status = PaymentStatus.failed;
+                    payment.Order.Status = OrderStatus.failed;
+                    payment.UpdatedAt = DateTime.UtcNow;
+
+                    await _context.SaveChangesAsync();
+                    await tx.CommitAsync();
+                    return;
+                }
+                if (responseCode == "00")
+                {
+                    var hasCommission = await _context.WalletTransactions.AnyAsync(x =>
+                        x.ReferenceId == payment.Order.Id &&
+                        x.Type == WalletTxType.commission
+                    );
+
+                    if (!hasCommission)
+                    {
+                        await UpdateContentStatsAsync(payment.Order);
+                        await ProcessCommissionsAsync(payment.Order);
+                        await GrantDownloadsAsync(payment.Order);
+                    }
+
+                    payment.Status = PaymentStatus.success;
+                    payment.PaidAt = DateTime.UtcNow;
+                    payment.Order.Status = OrderStatus.paid;
+                }
+                else
+                {
+                    payment.Status = PaymentStatus.failed;
+                    payment.Order.Status = OrderStatus.failed;
+                }
+
                 payment.UpdatedAt = DateTime.UtcNow;
+
                 await _context.SaveChangesAsync();
-                return;
+                await tx.CommitAsync();
             }
-
-            if (responseCode == "00")
+            catch
             {
-                payment.Status = PaymentStatus.success;
-                payment.PaidAt = DateTime.UtcNow;
-                payment.Order.Status = OrderStatus.paid;
-
-                await UpdateContentStatsAsync(payment.Order);
-                await ProcessCommissionsAsync(payment.Order);
+                await tx.RollbackAsync();
+                throw;
             }
-            else
-            {
-                payment.Status = PaymentStatus.failed;
-                payment.Order.Status = OrderStatus.failed;
-            }
-
-            payment.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
         }
+
 
 
         public async Task<OrderDto?> GetByIdAsync(Guid id)
@@ -292,14 +315,16 @@ namespace DrawingMarketplace.Application.Services
         private async Task ProcessCommissionsAsync(Order order)
         {
             var items = await _context.OrderItems
-                .Where(x => x.OrderId == order.Id && x.CollaboratorId != null)
-                .Include(x => x.Collaborator!)
+                .Where(x => x.OrderId == order.Id &&
+                            x.CollaboratorId.HasValue &&
+                            x.CollaboratorId != Guid.Empty)
+                .Include(x => x.Collaborator)
                 .ToListAsync();
 
             foreach (var i in items)
             {
                 var rate = i.Collaborator!.CommissionRate ?? 10;
-                var amount = i.Price * i.Quantity * rate / 100;
+                var amount = i.Price * i.Quantity * rate / 100m;
 
                 if (amount <= 0)
                     continue;
@@ -320,6 +345,7 @@ namespace DrawingMarketplace.Application.Services
                     _context.Wallets.Add(wallet);
                 }
 
+                wallet.Balance ??= 0;
                 wallet.Balance += amount;
                 wallet.UpdatedAt = DateTime.UtcNow;
 
@@ -333,18 +359,18 @@ namespace DrawingMarketplace.Application.Services
                     CreatedAt = DateTime.UtcNow
                 });
             }
-
-            await _context.SaveChangesAsync();
         }
+
+
 
         private async Task GrantDownloadsAsync(Order order)
         {
             var userId = order.UserId!.Value;
 
-            // Chỉ grant downloads nếu chưa được grant cho order này
-            var hasGrantedDownloads = await _context.Downloads
-                .AnyAsync(x => x.UserId == userId && order.OrderItems.Select(oi => oi.ContentId).Contains(x.ContentId)
-                    && x.CreatedAt >= order.CreatedAt);
+            var hasGrantedDownloads = await _context.Downloads.AnyAsync(x =>
+                x.UserId == userId &&
+                order.OrderItems.Select(oi => oi.ContentId).Contains(x.ContentId) &&
+                x.CreatedAt >= order.CreatedAt);
 
             if (hasGrantedDownloads)
                 return;
@@ -360,10 +386,7 @@ namespace DrawingMarketplace.Application.Services
                     CreatedAt = DateTime.UtcNow
                 });
             }
-
-            await _context.SaveChangesAsync();
         }
-
         private async Task<OrderDto?> MapToOrderDtoAsync(Guid orderId)
         {
             var order = await _context.Orders
@@ -408,6 +431,7 @@ namespace DrawingMarketplace.Application.Services
                 Items = order.OrderItems.Select(x => new OrderItemDto
                 {
                     ContentId = x.ContentId,
+                    CollaboratorId = x.CollaboratorId,
                     ContentTitle = x.Content!.Title,
                     Quantity = x.Quantity,
                     UnitPrice = x.Price,

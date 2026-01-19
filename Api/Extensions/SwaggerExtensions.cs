@@ -10,6 +10,7 @@ public static class SwaggerExtensions
     {
         services.AddSwaggerGen(c =>
         {
+            c.EnableAnnotations();
             c.SwaggerDoc("v1", new OpenApiInfo
             {
                 Title = "Drawing Marketplace API",

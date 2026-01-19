@@ -1,4 +1,5 @@
 using DrawingMarketplace.Application.Interfaces;
+using DrawingMarketplace.Domain.Exceptions;
 using DrawingMarketplace.Domain.Interfaces;
 
 namespace DrawingMarketplace.Application.Services
@@ -21,19 +22,47 @@ namespace DrawingMarketplace.Application.Services
 
         public IPaymentGateway GetGateway(string gatewayName)
         {
+            if (string.IsNullOrWhiteSpace(gatewayName))
+                throw new BadRequestException("Payment gateway không ???c ?? tr?ng");
+
             var normalizedName = gatewayName.ToLower();
+
             if (!_gateways.TryGetValue(normalizedName, out var gateway))
             {
-                throw new ArgumentException($"Payment gateway '{gatewayName}' not found");
+                _logger.LogWarning(
+                    "Payment gateway not found: {GatewayName}", gatewayName);
+
+                throw new BadRequestException(
+                    $"Payment gateway '{gatewayName}' không ???c h? tr?");
             }
+
             return gateway;
         }
 
-        public async Task<PaymentResult> CreatePaymentAsync(string gatewayName, CreatePaymentRequest request)
+        public async Task<PaymentResult> CreatePaymentAsync(
+     string gatewayName,
+     CreatePaymentRequest request)
         {
             var gateway = GetGateway(gatewayName);
-            return await gateway.CreatePaymentAsync(request);
+
+            try
+            {
+                return await gateway.CreatePaymentAsync(request);
+            }
+            catch (DomainException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Payment gateway error: {Gateway}", gatewayName);
+
+                throw new BadRequestException(
+                    "Không th? t?o thanh toán, vui lòng th? l?i sau");
+            }
         }
+
     }
 }
 

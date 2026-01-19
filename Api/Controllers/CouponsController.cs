@@ -3,6 +3,7 @@ using DrawingMarketplace.Application.DTOs.Coupon;
 using DrawingMarketplace.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 using static DrawingMarketplace.Application.DTOs.Coupon.CouponUpsertDto;
 
 namespace DrawingMarketplace.Api.Controllers
@@ -17,6 +18,11 @@ namespace DrawingMarketplace.Api.Controllers
         {
             _couponService = couponService;
         }
+
+        [SwaggerOperation(
+             Summary = "Danh sách coupon",
+             Description = "Lấy danh sách tất cả mã giảm giá"
+         )]
         [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> GetAll()
@@ -24,6 +30,11 @@ namespace DrawingMarketplace.Api.Controllers
             var coupons = await _couponService.GetAllAsync();
             return this.Success(coupons, "Lấy danh sách coupon thành công", "Get coupons successfully");
         }
+
+        [SwaggerOperation(
+            Summary = "Lấy coupon theo mã",
+            Description = "Lấy thông tin chi tiết coupon bằng mã coupon"
+        )]
         [AllowAnonymous]
         [HttpGet("{code}")]
         public async Task<IActionResult> GetByCode(string code)
@@ -35,6 +46,10 @@ namespace DrawingMarketplace.Api.Controllers
             return this.Success(coupon, "Lấy thông tin coupon thành công", "Get coupon successfully");
         }
 
+        [SwaggerOperation(
+            Summary = "Tạo coupon mới",
+            Description = "Admin tạo mã giảm giá mới"
+        )]
         [Authorize(Roles = "admin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateCouponDto dto)
@@ -42,6 +57,11 @@ namespace DrawingMarketplace.Api.Controllers
             var coupon = await _couponService.CreateAsync(dto);
             return this.Success(coupon, "Tạo coupon thành công", "Create coupon successfully", 201);
         }
+
+        [SwaggerOperation(
+            Summary = "Cập nhật coupon",
+            Description = "Admin cập nhật thông tin mã giảm giá"
+        )]
         [Authorize(Roles = "admin")]
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCouponDto dto)
@@ -53,6 +73,10 @@ namespace DrawingMarketplace.Api.Controllers
             return this.Success(coupon, "Cập nhật coupon thành công", "Update coupon successfully");
         }
 
+        [SwaggerOperation(
+            Summary = "Xóa coupon",
+            Description = "Admin xóa mã giảm giá"
+        )]
         [HttpDelete("{id:guid}")]
         [Authorize(Roles = "admin")]
         public async Task<IActionResult> Delete(Guid id)

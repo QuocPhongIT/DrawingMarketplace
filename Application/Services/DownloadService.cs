@@ -73,14 +73,10 @@ namespace DrawingMarketplace.Application.Services
 
             if (file == null)
                 throw new NotFoundException("MediaFile", fileId);
-
-            // Get allowed downloads from all user's purchases for this content
             var allowedDownloads = await _context.OrderItems
                 .AsNoTracking()
                 .Where(oi => oi.Order!.UserId == userId && oi.ContentId == contentId)
                 .SumAsync(oi => oi.Quantity * 5);
-
-            // Get current download count
             var download = await _context.Downloads
                 .FirstOrDefaultAsync(d => d.UserId == userId && d.ContentId == contentId);
 
@@ -94,8 +90,6 @@ namespace DrawingMarketplace.Application.Services
             {
                 throw new ForbiddenException($"Bạn đã hết {allowedDownloads} lượt tải cho nội dung này.");
             }
-
-            // Increment download count
             if (download == null)
             {
                 _context.Downloads.Add(new Download
@@ -131,8 +125,8 @@ namespace DrawingMarketplace.Application.Services
             return new DownloadFileResult
             {
                 Stream = stream,
-                FileName = file.FileName,              // VD: drawing.pdf
-                ContentType = file.FileType            // VD: application/pdf
+                FileName = file.FileName,   
+                ContentType = file.FileType         
             };
         }
 

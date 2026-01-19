@@ -5,6 +5,7 @@ using DrawingMarketplace.Application.Interfaces;
 using DrawingMarketplace.Domain.Entities;
 using DrawingMarketplace.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using DrawingMarketplace.Domain.Exceptions;
 
 namespace DrawingMarketplace.Application.Services
 {
@@ -67,8 +68,9 @@ namespace DrawingMarketplace.Application.Services
 
         public async Task<BannerDto> UpdateBannerAsync(Guid id, UpdateBannerDto dto, Guid currentUserId)
         {
-            var banner = await _context.Banners.FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt == null)
-                ?? throw new KeyNotFoundException("Banner không tồn tại");
+            var banner = await _context.Banners
+                .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt == null)
+                ?? throw new NotFoundException("Banner", id);
 
             banner.Title = dto.Title;
             banner.Subtitle = dto.Subtitle;
@@ -93,8 +95,10 @@ namespace DrawingMarketplace.Application.Services
 
         public async Task DeleteBannerAsync(Guid id)
         {
-            var banner = await _context.Banners.FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt == null)
-                ?? throw new KeyNotFoundException("Banner không tồn tại");
+            var banner = await _context.Banners
+                .FirstOrDefaultAsync(b => b.Id == id && b.DeletedAt == null)
+                ?? throw new NotFoundException("Banner", id);
+
 
             banner.DeletedAt = DateTime.UtcNow;
 
@@ -103,17 +107,25 @@ namespace DrawingMarketplace.Application.Services
 
         private async Task<string> UploadImageAsync(IFormFile file)
         {
-            if (file.Length == 0) throw new ArgumentException("File rỗng");
+            if (file == null || file.Length == 0)
+                throw new BadRequestException("File ảnh không hợp lệ");
 
             var uploadParams = new ImageUploadParams
             {
                 File = new FileDescription(file.FileName, file.OpenReadStream()),
                 Folder = "drawing-marketplace/banners",
-                Transformation = new Transformation().Quality("auto").FetchFormat("auto")
+                Transformation = new Transformation()
+                    .Quality("auto")
+                    .FetchFormat("auto")
             };
 
             var result = await _cloudinary.UploadAsync(uploadParams);
-            if (result.Error != null) throw new Exception(result.Error.Message);
+
+            if (result.Error != null)
+                throw new BadRequestException($"Upload ảnh thất bại: {result.Error.Message}");
+
+            if (result.SecureUrl == null)
+                throw new BadRequestException("Không lấy được URL ảnh sau khi upload");
 
             return result.SecureUrl.ToString();
         }
