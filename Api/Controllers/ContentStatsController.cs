@@ -8,7 +8,7 @@ using System.Security.Claims;
 
 namespace DrawingMarketplace.Api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/contentstats")]
     [ApiController]
     public class ContentStatsController : ControllerBase
     {

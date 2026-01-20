@@ -96,7 +96,7 @@ namespace DrawingMarketplace.Api.Controllers
             Description = "Huỷ toàn bộ phiên đăng nhập của người dùng trên mọi thiết bị."
         )]
         [Authorize]
-        [HttpPost("logout-all")]
+        [HttpPost("logoutall")]
         public async Task<IActionResult> LogoutAll()
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -131,7 +131,7 @@ namespace DrawingMarketplace.Api.Controllers
             Description = "Xác thực mã OTP được gửi qua email."
         )]
         [AllowAnonymous]
-        [HttpPost("verify-otp")]
+        [HttpPost("verifyotp")]
         public async Task<IActionResult> VerifyOtp(VerifyOtpRequest req)
         {
             await _verifyOtp.ExecuteAsync(req.Email, req.Otp);
@@ -143,7 +143,7 @@ namespace DrawingMarketplace.Api.Controllers
            Description = "Gửi lại mã OTP xác thực qua email."
        )]
         [AllowAnonymous]
-        [HttpPost("resend-otp")]   
+        [HttpPost("resendotp")]   
         public async Task<IActionResult> ResendOtp(ResendOtpRequest req)
         {
             await _resendOtp.ExecuteAsync(req.Email);
@@ -155,7 +155,7 @@ namespace DrawingMarketplace.Api.Controllers
             Description = "Gửi OTP đặt lại mật khẩu về email người dùng."
         )]
         [AllowAnonymous]
-        [HttpPost("forgot-password")]
+        [HttpPost("forgotpassword")]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest req)
         {
             await _forgot.ExecuteAsync(req.Email);
@@ -167,7 +167,7 @@ namespace DrawingMarketplace.Api.Controllers
             Description = "Đặt lại mật khẩu mới bằng OTP đã xác thực."
         )]
         [AllowAnonymous]
-        [HttpPost("reset-password")]
+        [HttpPost("resetpassword")]
         public async Task<IActionResult> ResetPassword(ResetPasswordRequest req)
         {
             await _reset.ExecuteAsync(

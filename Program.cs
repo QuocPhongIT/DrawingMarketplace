@@ -20,10 +20,19 @@ AppContext.SetSwitch("Npgsql.EnableLegacyNamingConvention", false);
 var builder = WebApplication.CreateBuilder(args);
 
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()                           
-    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)  
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
-    .WriteTo.Console()                           
+    .Enrich.FromLogContext()
+    .WriteTo.Console() 
+    .WriteTo.File(
+        path: Path.Combine(Directory.GetCurrentDirectory(), "logs/log-.txt"), 
+        rollingInterval: RollingInterval.Day, 
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+        restrictedToMinimumLevel: LogEventLevel.Information,
+        fileSizeLimitBytes: 50 * 1024 * 1024, 
+        retainedFileCountLimit: 31
+    )
     .CreateBootstrapLogger();
 
 builder.Host.UseSerilog();

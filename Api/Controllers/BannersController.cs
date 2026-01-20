@@ -10,7 +10,7 @@ using System.Security.Claims;
 
 namespace DrawingMarketplace.Api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/banners")]
     [ApiController]
     [Authorize]
     public class BannersController : ControllerBase

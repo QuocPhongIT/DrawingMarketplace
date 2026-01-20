@@ -121,7 +121,7 @@ namespace DrawingMarketplace.Api.Controllers
             Description = "Admin hoặc collaborator xem thông tin cơ bản cộng tác viên"
         )]
         [Authorize(Roles = "admin,collaborator")]
-        [HttpGet("collaborator/info")]
+        [HttpGet("info")]
         public async Task<IActionResult> GetCollaboratorBasicInfo()
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -286,7 +286,7 @@ namespace DrawingMarketplace.Api.Controllers
             Description = "Xem thống kê doanh thu và hoa hồng của collaborator"
         )]
         [Authorize(Roles = "admin,collaborator")]
-        [HttpGet("revenue-stats")]
+        [HttpGet("revenuestats")]
         public async Task<IActionResult> GetCollaboratorRevenueStats()
         {
             var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);

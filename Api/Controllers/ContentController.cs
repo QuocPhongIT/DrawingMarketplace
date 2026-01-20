@@ -88,7 +88,7 @@ namespace DrawingMarketplace.Api.Controllers
             Description = "Người dùng lấy danh sách content đã mua của chính mình"
         )]
         [Authorize]
-        [HttpGet("my-purchases")]
+        [HttpGet("mypurchases")]
         public async Task<IActionResult> GetMyPurchases(
              int page = 1,
              int pageSize = 10,

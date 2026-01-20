@@ -99,18 +99,24 @@ namespace DrawingMarketplace.Api.Controllers
             var query = Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString());
 
             if (!_paymentGateway.VerifySignature(query))
-                return Content("<h2>Chữ ký không hợp lệ</h2>", "text/html; charset=utf-8");
+                return this.Fail(
+                    "Chữ ký không hợp lệ",
+                    "Invalid signature",
+                    400
+                );
 
             var success = query["vnp_ResponseCode"] == "00";
 
-            return Content($@"
-                <html>
-                <body style='font-family:Arial;text-align:center;margin-top:50px'>
-                    <h2>{(success ? "Thanh toán thành công" : "Thanh toán thất bại")}</h2>
-                    <p>Mã giao dịch: {query["vnp_TransactionNo"]}</p>
-                    <p>Đơn hàng đang được xử lý</p>
-                </body>
-                </html>", "text/html; charset=utf-8");
+            return this.Success(
+                new
+                {
+                    orderId = query["vnp_TxnRef"],
+                    transactionId = query["vnp_TransactionNo"],
+                    responseCode = query["vnp_ResponseCode"]
+                },
+                success ? "Thanh toán thành công" : "Thanh toán thất bại",
+                success ? "Payment successful" : "Payment failed"
+            );
         }
 
         [SwaggerOperation(

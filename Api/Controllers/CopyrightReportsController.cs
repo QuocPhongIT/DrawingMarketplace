@@ -8,7 +8,7 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace DrawingMarketplace.Api.Controllers
 {
     [ApiController]
-    [Route("api/copyright-reports")]
+    [Route("api/copyrightreports")]
     public sealed class CopyrightReportsController : ControllerBase
     {
         private readonly ICopyrightReportService _service;
